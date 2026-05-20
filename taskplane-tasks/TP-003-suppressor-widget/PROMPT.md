@@ -35,9 +35,11 @@ status line; (2) maintain a footer status line showing active routine state.
 ## Context to Read First
 
 **Tier 2 (area context):**
+
 - `taskplane-tasks/CONTEXT.md`
 
 **Tier 3:**
+
 - `PLAN.md` — Phases 7 (Suppressor) and 8 (Widget)
 - `src/types.ts` — for `SILENT_TOKEN`, `RoutineRuntimeState`
 
@@ -90,6 +92,7 @@ Implement exactly as specified in `PLAN.md` Phase 7.
 - Message has image blocks only → no text, return `undefined`
 
 **Artifacts:**
+
 - `src/suppressor.ts` (new)
 
 ### Step 2: `src/widget.ts`
@@ -97,12 +100,12 @@ Implement exactly as specified in `PLAN.md` Phase 7.
 Implement exactly as specified in `PLAN.md` Phase 8.
 
 - [ ] Export `updateWidget(runtime, ctx): void` — recomputes status text and
-  calls `ctx.ui.setStatus("routines", text)`. No-op if `!ctx.hasUI`.
+      calls `ctx.ui.setStatus("routines", text)`. No-op if `!ctx.hasUI`.
 - [ ] Export `startWidgetRefresh(runtime, getCtx, intervalMs?): () => void` —
-  starts a low-frequency interval (default 10s) that calls `updateWidget` to
-  keep "next fire in Xm" countdowns accurate. Returns a stop function. If no
-  pulse routines are active, returns a no-op stop function and does NOT start
-  the interval.
+      starts a low-frequency interval (default 10s) that calls `updateWidget` to
+      keep "next fire in Xm" countdowns accurate. Returns a stop function. If no
+      pulse routines are active, returns a no-op stop function and does NOT start
+      the interval.
 - [ ] Export `clearWidget(ctx): void` — calls `ctx.ui.setStatus("routines", undefined)`
 - [ ] Status text format: `↺ <N> active  <name1>(<status1>) · <name2>(<status2>) ...`
   - For quiet routines: `(q·<tickCount>)`
@@ -124,6 +127,7 @@ Implement exactly as specified in `PLAN.md` Phase 8.
   stop function must be idempotent.
 
 **Artifacts:**
+
 - `src/widget.ts` (new)
 
 ### Step 3: Testing & Verification
@@ -138,14 +142,16 @@ Implement exactly as specified in `PLAN.md` Phase 8.
 
 - [ ] File-header JSDoc on both modules
 - [ ] If the `text.trim() === SILENT_TOKEN` correction was needed, log it in
-  `taskplane-tasks/CONTEXT.md` Discoveries
+      `taskplane-tasks/CONTEXT.md` Discoveries
 
 ## Documentation Requirements
 
 **Must Update:**
+
 - `taskplane-tasks/CONTEXT.md` — Discoveries table
 
 **Check If Affected:**
+
 - `PLAN.md` — do not modify; log via Amendment
 
 ## Completion Criteria
@@ -172,4 +178,17 @@ Implement exactly as specified in `PLAN.md` Phase 8.
 
 ## Amendments (Added During Execution)
 
-<!-- Workers add amendments here if issues are discovered during execution. -->
+### A1 — Suppressor exact-equality check (2026-05-20)
+
+PLAN.md Phase 7 specified `text.trimStart().startsWith(SILENT_TOKEN)`. PROMPT
+edge-case section explicitly overrode this to require `text.trim() === SILENT_TOKEN`.
+Implementation follows the PROMPT. Documented in `src/suppressor.ts` file header.
+
+### A2 — AgentMessage type import (2026-05-20)
+
+`@earendil-works/pi-coding-agent` does not re-export `MessageEndEvent` or
+`AgentMessage` from its package root, and `package.json#exports` only exposes
+`.` and `./hooks`. Rather than reach into an unsupported sub-path, suppressor
+duck-types the message as `{ role: string; content: unknown }` for the
+text-extraction path. The handler spreads `event.message` to preserve all
+other fields (api, provider, model, usage, …) in the replacement.

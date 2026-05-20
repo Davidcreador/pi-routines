@@ -1,4 +1,4 @@
 {
-  "signature": "src/executor.ts|src/scheduler.ts::🕸️ Impact cascade from edited file:\nChanged symbols: isStaleCtxError, startScheduler, stopScheduler, scheduleRoutine, unscheduleRoutine (+1 more)\nDirect importers: executor.ts\nDirect callers: executor.ts, scheduler.ts\nCheck next: executor.ts\nRisk: cycle-adjacent file, exported symbol changed, high complexity, high fanout\n📐 Cascade errors in 1 neighbor file(s) — fix before finishing turn:\n<diagnostics file=\"src/executor.ts\" reason=\"imports\">\n  line 27, col 35 rule=cascade:2307: Cannot find module './scheduler.ts' or its corresponding type declarations.\n</diagnostics>",
-  "sessionId": "lens-mpdbg9i6-18ba1bbe"
+  "signature": "src/suppressor.ts::Unresolved from this turn — src/suppressor.ts:\n🔴 STOP — 2 issue(s) must be fixed:\n  L18: '\"@earendil-works/pi-coding-agent\"' has no exported member named 'MessageEndEvent'. Did you mean 'AgentEndEvent'?\n    💡 Fix: LSP quick fixes: Change spelling to 'AgentEndEvent'; Remove unused declaration for: 'MessageEndEvent'\n  L18: 'MessageEndEvent' is declared but never used.\n    💡 Fix: Remove the unused declaration or rename with '_' prefix if intentionally unused.",
+  "sessionId": "lens-mpdbg9i7-ebb1b834"
 }

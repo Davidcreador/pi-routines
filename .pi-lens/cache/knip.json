@@ -28,8 +28,18 @@
     },
     {
       "type": "file",
+      "name": "src/suppressor.ts",
+      "file": "src/suppressor.ts"
+    },
+    {
+      "type": "file",
       "name": "src/types.ts",
       "file": "src/types.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/widget.ts",
+      "file": "src/widget.ts"
     },
     {
       "type": "dependency",
@@ -73,8 +83,18 @@
     },
     {
       "type": "file",
+      "name": "src/suppressor.ts",
+      "file": "src/suppressor.ts"
+    },
+    {
+      "type": "file",
       "name": "src/types.ts",
       "file": "src/types.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/widget.ts",
+      "file": "src/widget.ts"
     }
   ],
   "unusedDeps": [
