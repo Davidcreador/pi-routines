@@ -1,38 +1,38 @@
 # TP-002: Executor & Scheduler — Status
 
-**Current Step:** Not Started
-**Status:** 🔵 Ready for Execution
-**Last Updated:** 2026-05-19
+**Current Step:** Step 3: Integration sanity check
+**Status:** 🟡 In Progress
+**Last Updated:** 2026-05-20
 **Review Level:** 2
-**Review Counter:** 0
-**Iteration:** 0
+**Review Counter:** 1
+**Iteration:** 1
 **Size:** M
 
 ---
 
 ### Step 0: Preflight
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] TP-001 complete (`.DONE` exists)
-- [ ] All four foundation modules import cleanly
-- [ ] `pnpm typecheck` passes
+- [x] TP-001 complete (`.DONE` exists)  *(note: no .DONE yet — orchestrator-managed; deliverables present)*
+- [x] All four foundation modules import cleanly
+- [x] `pnpm typecheck` passes
 
 ---
 
 ### Step 1: src/executor.ts
-**Status:** ⬜ Not Started
+**Status:** 🟨 In Progress
 
-- [ ] Implement `buildPrompt` with full prefix + placeholder substitution
-- [ ] Implement `fireRoutine` with guard acquisition, maxTicks check, send, store update, error recovery
+- [x] Implement `buildPrompt` with full prefix + placeholder substitution
+- [x] Implement `fireRoutine` with guard acquisition, maxTicks check, send, store update, error recovery
 
 ---
 
 ### Step 2: src/scheduler.ts
-**Status:** ⬜ Not Started
+**Status:** 🟨 In Progress
 
-- [ ] Implement `startScheduler` / `stopScheduler` / `scheduleRoutine` / `unscheduleRoutine` / `drainQueue`
-- [ ] Implement tick handler with dedup + backpressure
-- [ ] Handle stale-ctx errors gracefully
+- [x] Implement `startScheduler` / `stopScheduler` / `scheduleRoutine` / `unscheduleRoutine` / `drainQueue`
+- [x] Implement tick handler with dedup + backpressure
+- [x] Handle stale-ctx errors gracefully
 
 ---
 
@@ -73,6 +73,7 @@
 
 | Discovery | Disposition | Location |
 |-----------|-------------|----------|
+| `ExtensionAPI.sendUserMessage` typed options only allow `deliverAs: "steer" \| "followUp"`; PLAN/PROMPT specify `"nextTurn"`. Used `"followUp"` (closest semantics: queue after current turn, non-interrupting). | Implemented as `followUp`; flag for PLAN amendment if behavior is wrong. | `src/executor.ts` `fireRoutine` |
 
 ---
 
@@ -81,6 +82,8 @@
 | Timestamp | Action | Outcome |
 |-----------|--------|---------|
 | 2026-05-19 | Task staged | PROMPT.md and STATUS.md created |
+| 2026-05-20 00:20 | Task started | Runtime V2 lane-runner execution |
+| 2026-05-20 00:20 | Step 0 started | Preflight |
 
 ---
 
@@ -93,3 +96,4 @@
 ## Notes
 
 *Reserved for execution notes*
+| 2026-05-20 00:24 | Review R001 | plan Step 1: APPROVE |
