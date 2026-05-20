@@ -149,6 +149,22 @@ export interface Routine {
 	quiet: boolean;
 	/** Auto-delete after N fires. `undefined` = unlimited. */
 	maxTicks?: number;
+	/**
+	 * Soft per-day cap: once {@link RoutineTickState.runsToday} reaches this
+	 * value, further fires are skipped (recorded as `"skipped"` runs with
+	 * reason `"daily cap reached"`) until local midnight. `undefined` = no
+	 * cap. The cap is enforced inside {@link fireRoutine} before any LLM
+	 * turn is opened, so capped fires consume no provider tokens.
+	 */
+	maxRunsPerDay?: number;
+	/**
+	 * When `true`, the routine is suspended: timers stay armed for cheap
+	 * /reload behaviour, but `enqueueTriggerFire`, hook firing, and the
+	 * HTTP server all short-circuit and record a `"skipped"` run with
+	 * reason `"paused"`. Resume with `/routine-resume` or the upcoming
+	 * `RoutinePause`/`RoutineResume` tools.
+	 */
+	paused?: boolean;
 	/** Epoch millis of creation. */
 	createdAt: number;
 }
@@ -171,6 +187,15 @@ export interface RoutineTickState {
 	 * before TP-009 — readers treat missing/undefined as empty.
 	 */
 	runs?: RoutineRun[];
+	/**
+	 * Number of runs (success + silent + error) recorded today, used by
+	 * {@link Routine.maxRunsPerDay}. Resets to 0 when `runsTodayDate` no
+	 * longer matches the current local date. Optional for back-compat;
+	 * missing/undefined is treated as 0.
+	 */
+	runsToday?: number;
+	/** Local ISO date (`YYYY-MM-DD`) the {@link runsToday} counter applies to. */
+	runsTodayDate?: string;
 }
 
 /**
@@ -195,6 +220,11 @@ export interface RoutineRun {
 	durationMs: number;
 	/** Outcome classification. */
 	status: "success" | "error" | "skipped" | "silent";
+	/**
+	 * Optional reason for `"skipped"` runs (e.g. `"paused"`, `"daily cap reached"`,
+	 * `"once: daily already fired"`). Omitted for non-skipped statuses.
+	 */
+	skipReason?: string;
 	/** Index into `routine.triggers` that fired; `-1` for manual. */
 	triggerIndex: number;
 	/** Kind of trigger that fired (or `"manual"`). */
