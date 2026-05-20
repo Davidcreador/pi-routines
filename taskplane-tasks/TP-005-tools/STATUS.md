@@ -12,6 +12,7 @@
 ---
 
 ### Step 0: Preflight
+
 **Status:** ✅ Complete
 
 - [x] TP-001 and TP-002 complete (both .DONE files exist; types/parser/scheduler/store inspected)
@@ -19,6 +20,7 @@
 ---
 
 ### Step 1: routine-create.ts
+
 **Status:** ✅ Complete
 
 - [x] TypeBox schema with pulse/hook union
@@ -29,6 +31,7 @@
 ---
 
 ### Step 2: routine-list.ts
+
 **Status:** ✅ Complete
 
 - [x] Sorted list with relative timestamps
@@ -37,15 +40,17 @@
 ---
 
 ### Step 3: routine-delete.ts
+
 **Status:** ✅ Complete
 
-- [x] id-then-name resolution (via _resolve.ts helper)
+- [x] id-then-name resolution (via \_resolve.ts helper)
 - [x] Helpful error with current routine list on not-found
 - [x] Unschedule + remove + save
 
 ---
 
 ### Step 4: routine-set-state.ts
+
 **Status:** ✅ Complete
 
 - [x] Deep merge into `userState`
@@ -55,6 +60,7 @@
 ---
 
 ### Step 5: Testing & Verification
+
 **Status:** ✅ Complete
 
 - [x] `pnpm typecheck` zero errors
@@ -64,6 +70,7 @@
 ---
 
 ### Step 6: Documentation & Delivery
+
 **Status:** ✅ Complete
 
 - [x] Discoveries logged in CONTEXT.md
@@ -73,34 +80,36 @@
 
 ## Reviews
 
-| # | Type | Step | Verdict | File |
-|---|------|------|---------|------|
+| #   | Type | Step | Verdict | File |
+| --- | ---- | ---- | ------- | ---- |
 
 ---
 
 ## Discoveries
 
 | Discovery | Disposition | Location |
-|-----------|-------------|----------|
+| --------- | ----------- | -------- |
 
 ---
 
 ## Execution Log
 
-| Timestamp | Action | Outcome |
-|-----------|--------|---------|
-| 2026-05-19 | Task staged | PROMPT.md and STATUS.md created |
-| 2026-05-20 00:36 | Task started | Runtime V2 lane-runner execution |
-| 2026-05-20 00:36 | Step 0 started | Preflight |
+| Timestamp        | Action         | Outcome                          |
+| ---------------- | -------------- | -------------------------------- |
+| 2026-05-19       | Task staged    | PROMPT.md and STATUS.md created  |
+| 2026-05-20 00:36 | Task started   | Runtime V2 lane-runner execution |
+| 2026-05-20 00:36 | Step 0 started | Preflight                        |
+| 2026-05-20 00:43 | Worker iter 1 | done in 402s, tools: 54 |
+| 2026-05-20 00:43 | Task complete | .DONE created |
 
 ---
 
 ## Blockers
 
-*None*
+_None_
 
 ---
 
 ## Notes
 
-*Reserved for execution notes*
+_Reserved for execution notes_

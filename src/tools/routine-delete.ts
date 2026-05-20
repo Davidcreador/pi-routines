@@ -56,7 +56,10 @@ export function registerRoutineDeleteTool(
 			"one of id or name.",
 		parameters: ParamsSchema,
 
-		async execute(_id, params: Params): Promise<AgentToolResult<Details | null>> {
+		async execute(
+			_id,
+			params: Params,
+		): Promise<AgentToolResult<Details | null>> {
 			const { id, name } = params;
 			if (!id && !name) {
 				return errorResult("Provide either id or name.");

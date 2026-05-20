@@ -113,7 +113,10 @@ export function registerRoutineCreateTool(
 			"Call with an existing name to update the routine in place.",
 		parameters: ParamsSchema,
 
-		async execute(_id, params: Params): Promise<AgentToolResult<Details | null>> {
+		async execute(
+			_id,
+			params: Params,
+		): Promise<AgentToolResult<Details | null>> {
 			const { name, prompt, trigger, quiet, maxTicks } = params;
 
 			// 1. Name validation.
@@ -169,7 +172,10 @@ export function registerRoutineCreateTool(
 			}
 
 			// 5. Global cap (only when creating new).
-			if (!existing && Object.keys(runtime.store.routines).length >= MAX_ROUTINES) {
+			if (
+				!existing &&
+				Object.keys(runtime.store.routines).length >= MAX_ROUTINES
+			) {
 				return errorResult(
 					`Routine limit reached (${MAX_ROUTINES}). Delete an existing routine first.`,
 				);
@@ -184,7 +190,9 @@ export function registerRoutineCreateTool(
 					prompt,
 					trigger: resolvedTrigger,
 					quiet: quiet ?? existing.quiet ?? false,
-					...(maxTicks !== undefined ? { maxTicks } : { maxTicks: existing.maxTicks }),
+					...(maxTicks !== undefined
+						? { maxTicks }
+						: { maxTicks: existing.maxTicks }),
 				};
 				// If the pulse interval changed (or trigger kind changed), clear the
 				// old timer; we re-schedule below.
@@ -247,8 +255,7 @@ export function registerRoutineCreateTool(
 
 		renderCall(args) {
 			const t = args.trigger;
-			const trig =
-				t.kind === "pulse" ? `every ${t.interval}` : `on ${t.event}`;
+			const trig = t.kind === "pulse" ? `every ${t.interval}` : `on ${t.event}`;
 			return new Text(`RoutineCreate ${args.name} — ${trig}`, 0, 0);
 		},
 

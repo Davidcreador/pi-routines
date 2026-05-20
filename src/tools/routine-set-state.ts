@@ -87,7 +87,10 @@ export function registerRoutineSetStateTool(
 			"the routine.",
 		parameters: ParamsSchema,
 
-		async execute(_id, params: Params): Promise<AgentToolResult<Details | null>> {
+		async execute(
+			_id,
+			params: Params,
+		): Promise<AgentToolResult<Details | null>> {
 			const { id, name, state } = params;
 			if (!id && !name) {
 				return errorResult("Provide either id or name.");

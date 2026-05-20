@@ -12,11 +12,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import type {
-	Routine,
-	RoutineRuntimeState,
-	RoutineTrigger,
-} from "../types.ts";
+import type { Routine, RoutineRuntimeState, RoutineTrigger } from "../types.ts";
 
 interface RoutineRow {
 	id: string;
@@ -122,7 +118,10 @@ export function registerRoutineListTool(
 				r.triggerDescription,
 				String(r.tickCount),
 				r.lastFiredAt,
-				[r.quiet ? "quiet" : "", r.maxTicks !== undefined ? `max=${r.maxTicks}` : ""]
+				[
+					r.quiet ? "quiet" : "",
+					r.maxTicks !== undefined ? `max=${r.maxTicks}` : "",
+				]
 					.filter(Boolean)
 					.join(" "),
 			]);
@@ -131,8 +130,15 @@ export function registerRoutineListTool(
 				Math.max(...all.map((row) => row[col]?.length ?? 0)),
 			);
 			const fmt = (row: string[]) =>
-				row.map((cell, i) => (cell ?? "").padEnd(widths[i] ?? 0)).join("  ").trimEnd();
-			const lines = [fmt(headers), fmt(headers.map((_, i) => "-".repeat(widths[i] ?? 0))), ...data.map(fmt)];
+				row
+					.map((cell, i) => (cell ?? "").padEnd(widths[i] ?? 0))
+					.join("  ")
+					.trimEnd();
+			const lines = [
+				fmt(headers),
+				fmt(headers.map((_, i) => "-".repeat(widths[i] ?? 0))),
+				...data.map(fmt),
+			];
 			return new Text(lines.join("\n"), 0, 0);
 		},
 	});
