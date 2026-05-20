@@ -89,3 +89,5 @@ Wave 5: TP-006 (hooks + entry point wiring)
 | TP-001 foundation done — no deviations from PLAN.md Phases 1–4/6                                                                                           | n/a                | src/{types,parser,store,guard}.ts |
 | `STATE_FILE` resolved at module load using `process.env.HOME` with `/tmp` fallback (kept the literal constant rather than a getter, matching PLAN snippet) | TP-001             | src/types.ts                      |
 | Parser uses `String.matchAll` segment scan; rejects residuals to catch garbage like `"5m banana"`                                                          | TP-001             | src/parser.ts                     |
+| Built-in templates shipped: `ci-watch`, `morning-briefing`, `pomodoro`, `deploy-watch`, `session-wrap`, `pr-babysitter`, `test-guardian`. `ci-watch` and `pr-babysitter` declare `requiredTools: ["gh"]` (warning only) | TP-004 | templates/*.json |
+| Routine management skill authored covering tool-vs-command surface, pulse vs hook, quiet semantics, self-termination, pitfalls | TP-004 | skills/routine/SKILL.md |

@@ -3,12 +3,12 @@
   "files": {
     "src/types.ts": {
       "latest": {
-        "commit": "abd29da9",
-        "timestamp": "2026-05-20T00:16:38.753Z",
-        "mi": 46.8,
+        "commit": "c7adef07",
+        "timestamp": "2026-05-20T00:21:18.724Z",
+        "mi": 46.7,
         "cognitive": 1,
         "nesting": 0,
-        "lines": 95,
+        "lines": 96,
         "maxCyclomatic": 1,
         "entropy": 5.33
       },
@@ -22,10 +22,20 @@
           "lines": 95,
           "maxCyclomatic": 1,
           "entropy": 5.33
+        },
+        {
+          "commit": "c7adef07",
+          "timestamp": "2026-05-20T00:21:18.724Z",
+          "mi": 46.7,
+          "cognitive": 1,
+          "nesting": 0,
+          "lines": 96,
+          "maxCyclomatic": 1,
+          "entropy": 5.33
         }
       ],
       "trend": "stable"
     }
   },
-  "capturedAt": "2026-05-20T00:16:43.756Z"
+  "capturedAt": "2026-05-20T00:21:23.725Z"
 }

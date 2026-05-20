@@ -1,0 +1,7 @@
+{
+  "name": "deploy-watch",
+  "description": "Check deploy status every 2m, self-terminates when done",
+  "trigger": { "kind": "pulse", "interval": "2m" },
+  "prompt": "Check deployment status. Run any available deploy status command (kubectl rollout status, railway status, fly status, heroku releases, etc. — try what's available).\n\nPrevious state: {state}\n\nIf deployment is complete or failed: summarize the result, then call RoutineDelete with name='deploy-watch' to stop checking.\nIf still in progress: update state with current status via RoutineSetState, then output [~].\nIf no deploy tool found: say so and call RoutineDelete.",
+  "quiet": true
+}

@@ -1,0 +1,7 @@
+{
+  "name": "morning-briefing",
+  "description": "Git log summary at session start, once per day",
+  "trigger": { "kind": "hook", "event": "session_start", "once": "daily" },
+  "prompt": "It's {time} on {date}. Give me a morning briefing:\n1. Run `git log --oneline --since='yesterday 6pm' --author=$(git config user.email) 2>/dev/null | head -20` and summarize what I worked on.\n2. Check if there's a todo.md, TASKS.md, or similar in the current directory. If so, note anything marked urgent or in-progress.\n3. Three bullets: what I shipped yesterday, what's in flight, suggested first task today.\nBe concise. If git log is empty, say so briefly.",
+  "quiet": false
+}

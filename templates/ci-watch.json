@@ -1,0 +1,8 @@
+{
+  "name": "ci-watch",
+  "description": "Check CI status every 3 minutes, alert on change",
+  "trigger": { "kind": "pulse", "interval": "3m" },
+  "prompt": "Check the CI status for the current git branch. Use `git branch --show-current` to get the branch name, then check CI (via gh, curl, or whatever CI tool is available). Only report if the status changed from last time. If nothing changed, output [~].\n\nPrevious state: {state}",
+  "quiet": true,
+  "requiredTools": ["gh"]
+}

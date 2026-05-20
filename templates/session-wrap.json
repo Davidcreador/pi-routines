@@ -1,0 +1,7 @@
+{
+  "name": "session-wrap",
+  "description": "Summarize and save session notes on shutdown",
+  "trigger": { "kind": "hook", "event": "session_shutdown", "once": "per_session" },
+  "prompt": "This session is ending. Write a brief session summary:\n1. What was accomplished (2-3 bullets)\n2. Key decisions made (if any)\n3. What's unfinished / next steps\n\nSave to Engram with title 'Session wrap {date}' and type 'learning'. If Engram is unavailable, write to ~/.pi/routines/logs/session-{date}-{time}.md instead.\n\nKeep it under 200 words.",
+  "quiet": false
+}
