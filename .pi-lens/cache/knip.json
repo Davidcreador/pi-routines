@@ -3,6 +3,11 @@
   "issues": [
     {
       "type": "file",
+      "name": "extensions/index.ts",
+      "file": "extensions/index.ts"
+    },
+    {
+      "type": "file",
       "name": "src/executor.ts",
       "file": "src/executor.ts"
     },
@@ -10,6 +15,11 @@
       "type": "file",
       "name": "src/guard.ts",
       "file": "src/guard.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/hooks.ts",
+      "file": "src/hooks.ts"
     },
     {
       "type": "file",
@@ -43,36 +53,6 @@
     },
     {
       "type": "file",
-      "name": "src/commands/routine-export-cron.ts",
-      "file": "src/commands/routine-export-cron.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routine-install.ts",
-      "file": "src/commands/routine-install.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routine-on.ts",
-      "file": "src/commands/routine-on.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routine-stop.ts",
-      "file": "src/commands/routine-stop.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routine.ts",
-      "file": "src/commands/routine.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routines.ts",
-      "file": "src/commands/routines.ts"
-    },
-    {
-      "type": "file",
       "name": "src/tools/_mutate.ts",
       "file": "src/tools/_mutate.ts"
     },
@@ -100,6 +80,36 @@
       "type": "file",
       "name": "src/tools/routine-set-state.ts",
       "file": "src/tools/routine-set-state.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine-export-cron.ts",
+      "file": "src/commands/routine-export-cron.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine-install.ts",
+      "file": "src/commands/routine-install.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine-on.ts",
+      "file": "src/commands/routine-on.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine-stop.ts",
+      "file": "src/commands/routine-stop.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine.ts",
+      "file": "src/commands/routine.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routines.ts",
+      "file": "src/commands/routines.ts"
     },
     {
       "type": "dependency",
@@ -118,6 +128,11 @@
   "unusedFiles": [
     {
       "type": "file",
+      "name": "extensions/index.ts",
+      "file": "extensions/index.ts"
+    },
+    {
+      "type": "file",
       "name": "src/executor.ts",
       "file": "src/executor.ts"
     },
@@ -125,6 +140,11 @@
       "type": "file",
       "name": "src/guard.ts",
       "file": "src/guard.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/hooks.ts",
+      "file": "src/hooks.ts"
     },
     {
       "type": "file",
@@ -158,36 +178,6 @@
     },
     {
       "type": "file",
-      "name": "src/commands/routine-export-cron.ts",
-      "file": "src/commands/routine-export-cron.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routine-install.ts",
-      "file": "src/commands/routine-install.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routine-on.ts",
-      "file": "src/commands/routine-on.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routine-stop.ts",
-      "file": "src/commands/routine-stop.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routine.ts",
-      "file": "src/commands/routine.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/commands/routines.ts",
-      "file": "src/commands/routines.ts"
-    },
-    {
-      "type": "file",
       "name": "src/tools/_mutate.ts",
       "file": "src/tools/_mutate.ts"
     },
@@ -215,6 +205,36 @@
       "type": "file",
       "name": "src/tools/routine-set-state.ts",
       "file": "src/tools/routine-set-state.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine-export-cron.ts",
+      "file": "src/commands/routine-export-cron.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine-install.ts",
+      "file": "src/commands/routine-install.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine-on.ts",
+      "file": "src/commands/routine-on.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine-stop.ts",
+      "file": "src/commands/routine-stop.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routine.ts",
+      "file": "src/commands/routine.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/commands/routines.ts",
+      "file": "src/commands/routines.ts"
     }
   ],
   "unusedDeps": [
@@ -232,5 +252,5 @@
     }
   ],
   "unlistedDeps": [],
-  "summary": "Found 22 issues"
+  "summary": "Found 24 issues"
 }
