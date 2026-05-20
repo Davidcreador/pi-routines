@@ -66,8 +66,42 @@ export interface HookTrigger {
 	once?: "daily" | "per_session";
 }
 
+/**
+ * GitHub trigger: fires when polling `gh` finds previously-unseen events.
+ *
+ * `cursor` is the highest-seen event id (PR/issue number as string, or
+ * commit sha for `push`); persisted across reloads. The poller seeds
+ * `cursor` on its first successful tick without firing, so existing items
+ * do not trigger a stampede on first arm.
+ *
+ * Filters:
+ *   - `labels`     (pull_request only): all listed labels must be present
+ *   - `branches`   (push only):          only commits to one of these refs
+ *   - `mergedOnly` (pull_request.closed only): only merged PRs count
+ */
+export interface GithubTrigger {
+	kind: "github";
+	/** `"owner/name"`. */
+	repo: string;
+	event: "pull_request.opened" | "pull_request.closed" | "issues.opened" | "push";
+	/** Resolved poll interval in ms. Lower-bounded by MIN_GITHUB_POLL_MS. */
+	pollIntervalMs: number;
+	filter?: {
+		labels?: string[];
+		branches?: string[];
+		mergedOnly?: boolean;
+	};
+	/** Last-seen event id. */
+	cursor?: string;
+}
+
 /** Union of all trigger kinds. */
-export type RoutineTrigger = PulseTrigger | CronTrigger | OneOffTrigger | HookTrigger;
+export type RoutineTrigger =
+	| PulseTrigger
+	| CronTrigger
+	| OneOffTrigger
+	| HookTrigger
+	| GithubTrigger;
 
 // ─── Context modes ───────────────────────────────────────────────────────────
 
@@ -269,6 +303,15 @@ export const MAX_RUN_HISTORY = 20;
 
 /** Max chars of assistant response captured into {@link RoutineRun.snippet}. */
 export const SNIPPET_MAX_CHARS = 200;
+
+/** Min poll interval for github triggers (rate-limit safety floor). */
+export const MIN_GITHUB_POLL_MS = 60_000;
+
+/** Default github poll interval when caller omits it. */
+export const DEFAULT_GITHUB_POLL_MS = 120_000;
+
+/** Max backoff after consecutive `gh` failures (30 minutes). */
+export const MAX_GITHUB_BACKOFF_MS = 30 * 60_000;
 
 /**
  * Absolute path of the persisted state file.

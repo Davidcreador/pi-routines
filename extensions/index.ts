@@ -27,6 +27,7 @@ import { registerRoutineInstallCommand } from "../src/commands/routine-install.t
 import { registerRoutineOnCommand } from "../src/commands/routine-on.ts";
 import { registerRoutineRunNowCommand } from "../src/commands/routine-run-now.ts";
 import { registerRoutineRunsCommand } from "../src/commands/routine-runs.ts";
+import { registerScheduleCommand } from "../src/commands/schedule.ts";
 import { registerRoutineStopCommand } from "../src/commands/routine-stop.ts";
 import { registerRoutinesCommand } from "../src/commands/routines.ts";
 import { registerHooks, registerInputTracker } from "../src/hooks.ts";
@@ -93,6 +94,7 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	registerRoutineExportCronCommand(pi, runtime);
 	registerRoutineRunNowCommand(pi, runtime, getCtx);
 	registerRoutineRunsCommand(pi, runtime);
+	registerScheduleCommand(pi);
 
 	// 3. Suppressor (message_end interceptor for `[~]`).
 	registerSuppressor(pi, runtime);
