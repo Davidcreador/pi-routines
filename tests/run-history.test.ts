@@ -110,11 +110,25 @@ describe("run-history: ring buffer", () => {
 		assert.equal(last?.triggerIndex, -1);
 	});
 
-	it("ignores records for unknown routines (no tickState entry)", () => {
+	it("initialises a tickState entry on first record (covers cap-skip / first-error)", () => {
 		const rt = makeRuntime();
-		// no seedRoutine
-		recordRun(rt, rt.store, makeRun("ghost", 1));
-		assert.equal(rt.store.tickState.ghost, undefined);
+		// No seedRoutine — recordRun should create the tickState entry itself
+		// so the first-ever skip/error of a routine isn't silently lost.
+		recordRun(
+			rt,
+			rt.store,
+			makeRun("first-ever", 1, { status: "skipped", skipReason: "daily cap reached" }),
+		);
+		const ts = rt.store.tickState["first-ever"];
+		assert.ok(ts, "tickState entry should have been created");
+		assert.equal(ts?.runs?.length, 1);
+		assert.equal(ts?.runs?.[0]?.status, "skipped");
+		assert.equal(ts?.runs?.[0]?.skipReason, "daily cap reached");
+		// The synthetic tickState should be the default shape so subsequent
+		// success-path writes don't see stale data.
+		assert.equal(ts?.tickCount, 0);
+		assert.equal(ts?.lastFiredAt, 0);
+		assert.deepEqual(ts?.userState, {});
 	});
 });
 

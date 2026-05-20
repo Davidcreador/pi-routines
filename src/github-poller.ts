@@ -241,8 +241,13 @@ export function armGithubPoller(
 /**
  * One poll cycle. Returns the delay in ms for the next tick (interval on
  * success, escalated backoff on failure).
+ *
+ * Exported only so tests can exercise this directly (driving it through the
+ * real `armGithubPoller` setTimeout chain requires `mock.timers.tickAsync`,
+ * which isn't yet stable in Node 22 — calling this function lets tests
+ * cover the paused-short-circuit and backoff paths without timing hacks).
  */
-async function tickGithub(
+export async function tickGithub(
 	routine: Routine,
 	triggerIndex: number,
 	runtime: RoutineRuntimeState,
