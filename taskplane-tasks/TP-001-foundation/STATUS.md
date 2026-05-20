@@ -1,11 +1,11 @@
 # TP-001: Foundation — Status
 
-**Current Step:** Not Started
-**Status:** 🔵 Ready for Execution
-**Last Updated:** 2026-05-19
+**Current Step:** Step 1: Package skeleton
+**Status:** 🟡 In Progress
+**Last Updated:** 2026-05-20
 **Review Level:** 1
 **Review Counter:** 0
-**Iteration:** 0
+**Iteration:** 1
 **Size:** M
 
 > **Hydration:** Outcome-level checkboxes. Worker expands within a step only
@@ -14,11 +14,11 @@
 ---
 
 ### Step 0: Preflight
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] PLAN.md exists at repo root
-- [ ] `src/` directory is empty
-- [ ] `pnpm` available
+- [x] PLAN.md exists at repo root
+- [x] `src/` directory is empty
+- [x] `pnpm` available
 
 ---
 
@@ -104,6 +104,8 @@
 | Timestamp | Action | Outcome |
 |-----------|--------|---------|
 | 2026-05-19 | Task staged | PROMPT.md and STATUS.md created |
+| 2026-05-20 00:10 | Task started | Runtime V2 lane-runner execution |
+| 2026-05-20 00:10 | Step 0 started | Preflight |
 
 ---
 
