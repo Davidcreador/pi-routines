@@ -1,10 +1,10 @@
 # TP-002: Executor & Scheduler — Status
 
-**Current Step:** Step 5: Documentation & Delivery (awaiting code review)
-**Status:** 🟡 In Progress
+**Current Step:** Step 5: Documentation & Delivery
+**Status:** ✅ Complete
 **Last Updated:** 2026-05-20
 **Review Level:** 2
-**Review Counter:** 1
+**Review Counter:** 4
 **Iteration:** 1
 **Size:** M
 
@@ -20,7 +20,7 @@
 ---
 
 ### Step 1: src/executor.ts
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
 - [x] Implement `buildPrompt` with full prefix + placeholder substitution
 - [x] Implement `fireRoutine` with guard acquisition, maxTicks check, send, store update, error recovery
@@ -28,7 +28,7 @@
 ---
 
 ### Step 2: src/scheduler.ts
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
 - [x] Implement `startScheduler` / `stopScheduler` / `scheduleRoutine` / `unscheduleRoutine` / `drainQueue`
 - [x] Implement tick handler with dedup + backpressure
@@ -37,7 +37,7 @@
 ---
 
 ### Step 3: Integration sanity check
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
 - [x] Both modules import cleanly together  *(via `src/_smoke.ts`, deleted after verification)*
 - [x] `scheduleRoutine` + `unscheduleRoutine` round-trip leaves zero timers
@@ -46,7 +46,7 @@
 ---
 
 ### Step 4: Testing & Verification
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
 - [x] `pnpm typecheck` zero errors
 - [x] `pnpm test` exits 0  *(repo test script is a stub: `echo no tests yet && exit 0`)*
@@ -55,7 +55,7 @@
 ---
 
 ### Step 5: Documentation & Delivery
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
 - [x] File-header JSDoc on both modules
 - [x] Discoveries logged
@@ -66,6 +66,10 @@
 
 | # | Type | Step | Verdict | File |
 |---|------|------|---------|------|
+| 1 | plan | 1 | APPROVE | (inline) |
+| 2 | code | 1 | APPROVE | (inline) |
+| 3 | code | 2 | APPROVE | (inline) |
+| 4 | code | 3 | APPROVE | (inline) |
 
 ---
 
@@ -97,3 +101,6 @@
 
 *Reserved for execution notes*
 | 2026-05-20 00:24 | Review R001 | plan Step 1: APPROVE |
+| 2026-05-20 00:29 | Review R002 | code Step 1: APPROVE |
+| 2026-05-20 00:31 | Review R003 | code Step 2: APPROVE |
+| 2026-05-20 00:32 | Review R004 | code Step 3: APPROVE |
