@@ -26,9 +26,9 @@
  */
 
 import { spawn } from "node:child_process";
-import { saveStore } from "./store.ts";
-import { enqueueTriggerFire } from "./scheduler.ts";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { enqueueTriggerFire } from "./scheduler.ts";
+import { saveStore } from "./store.ts";
 import type { GithubTrigger, Routine, RoutineRuntimeState } from "./types.ts";
 import { MAX_GITHUB_BACKOFF_MS, MIN_GITHUB_POLL_MS } from "./types.ts";
 

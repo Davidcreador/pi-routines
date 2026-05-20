@@ -11,8 +11,8 @@
 
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
+import { type Static, Type } from "typebox";
 import { Value } from "typebox/value";
-import { Type, type Static } from "typebox";
 import { buildSchedulePrompt, SCHEDULE_HELP } from "../src/schedule-nl.ts";
 
 // Mirror of the RoutineCreate schema (kept in sync with src/tools/routine-create.ts).
