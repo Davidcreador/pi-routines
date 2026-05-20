@@ -3,6 +3,11 @@
   "issues": [
     {
       "type": "file",
+      "name": "src/guard.ts",
+      "file": "src/guard.ts"
+    },
+    {
+      "type": "file",
       "name": "src/parser.ts",
       "file": "src/parser.ts"
     },
@@ -31,6 +36,11 @@
   ],
   "unusedExports": [],
   "unusedFiles": [
+    {
+      "type": "file",
+      "name": "src/guard.ts",
+      "file": "src/guard.ts"
+    },
     {
       "type": "file",
       "name": "src/parser.ts",
@@ -62,5 +72,5 @@
     }
   ],
   "unlistedDeps": [],
-  "summary": "Found 5 issues"
+  "summary": "Found 6 issues"
 }
