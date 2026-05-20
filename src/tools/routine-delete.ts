@@ -68,7 +68,10 @@ export function registerRoutineDeleteTool(
 				content: [
 					{ type: "text", text: `Deleted routine '${result.deletedName}'.` },
 				],
-				details: { deletedId: result.deletedId, deletedName: result.deletedName },
+				details: {
+					deletedId: result.deletedId,
+					deletedName: result.deletedName,
+				},
 			};
 		},
 

@@ -164,10 +164,7 @@ export async function createRoutine(
 		}
 	}
 
-	if (
-		!existing &&
-		Object.keys(runtime.store.routines).length >= MAX_ROUTINES
-	) {
+	if (!existing && Object.keys(runtime.store.routines).length >= MAX_ROUTINES) {
 		return {
 			error: `Routine limit reached (${MAX_ROUTINES}). Delete an existing routine first.`,
 		};

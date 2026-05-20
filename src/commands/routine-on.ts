@@ -85,7 +85,10 @@ export function registerRoutineOnCommand(
 			}
 			const prompt = rest.join(" ").trim();
 			if (!prompt) {
-				send(pi, `Provide a prompt after the event. Example: /routine-on ${first} summarize the session.`);
+				send(
+					pi,
+					`Provide a prompt after the event. Example: /routine-on ${first} summarize the session.`,
+				);
 				return;
 			}
 			const name = autoName(prompt, runtime);

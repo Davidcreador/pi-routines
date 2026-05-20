@@ -31,10 +31,7 @@ function send(pi: ExtensionAPI, text: string): void {
  * non-alphanum → '-', collapsed, trimmed, capped at 32 chars. Appends
  * `-N` while colliding with an existing routine name.
  */
-function autoName(
-	prompt: string,
-	runtime: RoutineRuntimeState,
-): string {
+function autoName(prompt: string, runtime: RoutineRuntimeState): string {
 	const words = prompt.trim().split(/\s+/).slice(0, 3).join(" ");
 	let base = words
 		.toLowerCase()

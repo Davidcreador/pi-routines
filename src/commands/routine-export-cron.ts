@@ -39,7 +39,11 @@ function cronSchedule(intervalMs: number): string {
 	return `*/${minutes} * * * *`;
 }
 
-function buildPlist(label: string, intervalSeconds: number, promptFile: string): string {
+function buildPlist(
+	label: string,
+	intervalSeconds: number,
+	promptFile: string,
+): string {
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -113,7 +117,10 @@ export function registerRoutineExportCronCommand(
 			if (!NAME_RE.test(routine.name)) {
 				// Defensive: routine names already pass NAME_RE on create, but make
 				// the path-safety check explicit at the filesystem boundary.
-				send(pi, `Routine name '${routine.name}' is unsafe for filesystem export.`);
+				send(
+					pi,
+					`Routine name '${routine.name}' is unsafe for filesystem export.`,
+				);
 				return;
 			}
 

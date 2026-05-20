@@ -1,6 +1,87 @@
 {
-  "files": {},
+  "files": {
+    "taskplane-tasks/TP-007-slash-commands/STATUS.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 142
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:54:43.978Z"
+    },
+    "src/tools/_mutate.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 256
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:54:44.071Z"
+    },
+    "src/tools/routine-delete.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 92
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:54:44.180Z"
+    },
+    "src/commands/routine.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 130
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:54:44.236Z"
+    },
+    "src/commands/routine-on.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 117
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:54:44.288Z"
+    },
+    "src/commands/routine-install.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 178
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:54:44.450Z"
+    },
+    "src/commands/routine-export-cron.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 167
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:54:44.505Z"
+    },
+    "taskplane-tasks/CONTEXT.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 105
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:54:44.622Z"
+    }
+  },
   "turnCycles": 0,
   "maxCycles": 3,
-  "lastUpdated": "2026-05-20T00:54:36.415Z"
+  "lastUpdated": "2026-05-20T00:54:44.622Z"
 }

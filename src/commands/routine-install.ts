@@ -51,8 +51,7 @@ function listTemplateNames(): string[] {
 function validateTemplate(raw: unknown): RoutineTemplate {
 	if (!raw || typeof raw !== "object") throw new Error("not an object");
 	const t = raw as Record<string, unknown>;
-	if (typeof t.name !== "string" || !t.name)
-		throw new Error("missing 'name'");
+	if (typeof t.name !== "string" || !t.name) throw new Error("missing 'name'");
 	if (typeof t.description !== "string")
 		throw new Error("missing 'description'");
 	if (typeof t.prompt !== "string" || !t.prompt)
@@ -90,10 +89,7 @@ export function registerRoutineInstallCommand(
 			const name = args.trim();
 			if (!name) {
 				const available = listTemplateNames().join(", ") || "(none)";
-				send(
-					pi,
-					`Usage: /routine-install <template>\nAvailable: ${available}`,
-				);
+				send(pi, `Usage: /routine-install <template>\nAvailable: ${available}`);
 				return;
 			}
 			if (!NAME_RE.test(name)) {
@@ -117,7 +113,10 @@ export function registerRoutineInstallCommand(
 				const raw = JSON.parse(fs.readFileSync(file, "utf8"));
 				template = validateTemplate(raw);
 			} catch (err) {
-				send(pi, `Failed to load template '${name}': ${(err as Error).message}`);
+				send(
+					pi,
+					`Failed to load template '${name}': ${(err as Error).message}`,
+				);
 				return;
 			}
 
