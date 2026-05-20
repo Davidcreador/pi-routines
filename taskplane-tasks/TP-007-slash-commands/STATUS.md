@@ -1,7 +1,7 @@
 # TP-007: Slash Commands — Status
 
-**Current Step:** Step 0: Preflight
-**Status:** 🟡 In Progress
+**Current Step:** Step 9: Documentation & Delivery
+**Status:** ✅ Complete
 **Last Updated:** 2026-05-20
 **Review Level:** 1
 **Review Counter:** 0
@@ -28,71 +28,71 @@
 ---
 
 ### Step 2: /routine
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
-- [ ] Interval parsing across multi-word prefix
-- [ ] Auto-name + collision suffix
-- [ ] Create + confirm
+- [x] Interval parsing across multi-word prefix
+- [x] Auto-name + collision suffix
+- [x] Create + confirm
 
 ---
 
 ### Step 3: /routine-on
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Event aliases (start/end/stop)
-- [ ] Hook trigger creation
-- [ ] Reject duplicate `agent_end`
+- [x] Event aliases (start/end/stop)
+- [x] Hook trigger creation
+- [x] Reject duplicate `agent_end` (via _mutate)
 
 ---
 
 ### Step 4: /routines
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Table output with empty-state hint
+- [x] Table output with empty-state hint
 
 ---
 
 ### Step 5: /routine-stop
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Tab-completion on routine names
-- [ ] Delete + confirm
+- [x] Tab-completion on routine names
+- [x] Delete + confirm
 
 ---
 
 ### Step 6: /routine-install
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Tab-completion on template names
-- [ ] Sanitize template name input
-- [ ] `requiredTools` check via `pi.exec("which", [tool])` — warn only
-- [ ] Create routine from template
+- [x] Tab-completion on template names
+- [x] Sanitize template name input (NAME_RE [a-z0-9-]+)
+- [x] `requiredTools` check via `pi.exec("which", [tool])` — warn only
+- [x] Create routine from template
 
 ---
 
 ### Step 7: /routine-export-cron
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Refuse hook routines + interval > 60m
-- [ ] Generate crontab line, launchd plist, prompt file
-- [ ] Write helper files; do not modify the user's crontab
+- [x] Refuse hook routines + interval > 60m
+- [x] Generate crontab line, launchd plist, prompt file
+- [x] Write helper files; do not modify the user's crontab
 
 ---
 
 ### Step 8: Testing & Verification
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] `pnpm typecheck` zero errors
-- [ ] `pnpm test` exits 0
-- [ ] No direct `runtime.store.routines[id] =` writes outside `_mutate.ts`
+- [x] `pnpm typecheck` zero errors
+- [x] `pnpm test` exits 0 (no tests yet stub)
+- [x] No direct `runtime.store.routines[id] =` writes outside `_mutate.ts` (only reads in scheduler.ts)
 
 ---
 
 ### Step 9: Documentation & Delivery
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] JSDoc on every new file
-- [ ] CONTEXT.md Discoveries updated
+- [x] JSDoc on every new file
+- [x] CONTEXT.md Discoveries updated
 
 ---
 

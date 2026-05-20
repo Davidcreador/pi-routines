@@ -250,7 +250,57 @@
         }
       ],
       "trend": "stable"
+    },
+    "src/commands/routine-install.ts": {
+      "latest": {
+        "commit": "deea7f18",
+        "timestamp": "2026-05-20T00:52:24.713Z",
+        "mi": 30.9,
+        "cognitive": 81,
+        "nesting": 5,
+        "lines": 165,
+        "maxCyclomatic": 28,
+        "entropy": 6.32
+      },
+      "history": [
+        {
+          "commit": "deea7f18",
+          "timestamp": "2026-05-20T00:52:24.713Z",
+          "mi": 30.9,
+          "cognitive": 81,
+          "nesting": 5,
+          "lines": 165,
+          "maxCyclomatic": 28,
+          "entropy": 6.32
+        }
+      ],
+      "trend": "stable"
+    },
+    "src/commands/routine-export-cron.ts": {
+      "latest": {
+        "commit": "deea7f18",
+        "timestamp": "2026-05-20T00:53:22.024Z",
+        "mi": 35.1,
+        "cognitive": 19,
+        "nesting": 4,
+        "lines": 146,
+        "maxCyclomatic": 15,
+        "entropy": 6.79
+      },
+      "history": [
+        {
+          "commit": "deea7f18",
+          "timestamp": "2026-05-20T00:53:22.024Z",
+          "mi": 35.1,
+          "cognitive": 19,
+          "nesting": 4,
+          "lines": 146,
+          "maxCyclomatic": 15,
+          "entropy": 6.79
+        }
+      ],
+      "trend": "stable"
     }
   },
-  "capturedAt": "2026-05-20T00:46:13.181Z"
+  "capturedAt": "2026-05-20T00:53:27.025Z"
 }
