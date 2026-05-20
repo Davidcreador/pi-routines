@@ -25,6 +25,8 @@ import { registerRoutineCommand } from "../src/commands/routine.ts";
 import { registerRoutineExportCronCommand } from "../src/commands/routine-export-cron.ts";
 import { registerRoutineInstallCommand } from "../src/commands/routine-install.ts";
 import { registerRoutineOnCommand } from "../src/commands/routine-on.ts";
+import { registerRoutineRunNowCommand } from "../src/commands/routine-run-now.ts";
+import { registerRoutineRunsCommand } from "../src/commands/routine-runs.ts";
 import { registerRoutineStopCommand } from "../src/commands/routine-stop.ts";
 import { registerRoutinesCommand } from "../src/commands/routines.ts";
 import { registerHooks, registerInputTracker } from "../src/hooks.ts";
@@ -63,6 +65,8 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 		isRoutineTurnActive: false,
 		activeRoutineName: null,
 		lastUiCtx: null,
+		triggerOrigin: new Map(),
+		pendingRun: null,
 	};
 
 	// ─── Live ctx accessor for scheduler / widget refresh ──────────────────
@@ -87,6 +91,8 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	registerRoutineStopCommand(pi, runtime);
 	registerRoutineInstallCommand(pi, runtime, getCtx);
 	registerRoutineExportCronCommand(pi, runtime);
+	registerRoutineRunNowCommand(pi, runtime, getCtx);
+	registerRoutineRunsCommand(pi, runtime);
 
 	// 3. Suppressor (message_end interceptor for `[~]`).
 	registerSuppressor(pi, runtime);

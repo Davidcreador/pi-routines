@@ -14,6 +14,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { truncateSnippet } from "./executor.ts";
 import { type RoutineRuntimeState, SILENT_TOKEN } from "./types.ts";
 
 /**
@@ -56,6 +57,19 @@ export function registerSuppressor(pi: ExtensionAPI, runtime: RoutineRuntimeStat
 		if (event.message.role !== "assistant") return undefined;
 
 		const text = extractText(event.message);
+
+		// Populate the in-flight run record (if any) with the response snippet.
+		// agent_end will finalise + persist it.
+		if (runtime.pendingRun) {
+			const trimmed = text.trim();
+			if (trimmed === SILENT_TOKEN) {
+				runtime.pendingRun.status = "silent";
+				runtime.pendingRun.snippet = SILENT_TOKEN;
+			} else if (text.length > 0) {
+				runtime.pendingRun.snippet = truncateSnippet(text);
+			}
+		}
+
 		if (text.length === 0) return undefined;
 
 		// Exact-equality check (see file header amendment). LLM may pad the
