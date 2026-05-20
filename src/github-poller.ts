@@ -28,10 +28,7 @@
 import { spawn } from "node:child_process";
 import { saveStore } from "./store.ts";
 import { enqueueTriggerFire } from "./scheduler.ts";
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { GithubTrigger, Routine, RoutineRuntimeState } from "./types.ts";
 import { MAX_GITHUB_BACKOFF_MS, MIN_GITHUB_POLL_MS } from "./types.ts";
 
@@ -144,10 +141,7 @@ export function normaliseEvents(trigger: GithubTrigger, json: unknown): Normalis
 }
 
 /** Apply the trigger's filter block. Returns events that pass. */
-export function filterEvents(
-	trigger: GithubTrigger,
-	events: NormalisedEvent[],
-): NormalisedEvent[] {
+export function filterEvents(trigger: GithubTrigger, events: NormalisedEvent[]): NormalisedEvent[] {
 	const f = trigger.filter;
 	if (!f) return events;
 	return events.filter((ev) => {
@@ -214,9 +208,7 @@ export function armGithubPoller(
 	const trig = routine.triggers[triggerIndex];
 	if (!trig || trig.kind !== "github") return null;
 	if (typeof trig.repo !== "string" || !trig.repo.includes("/")) {
-		console.warn(
-			`[pi-routines] github: invalid repo for '${routine.name}': ${String(trig.repo)}`,
-		);
+		console.warn(`[pi-routines] github: invalid repo for '${routine.name}': ${String(trig.repo)}`);
 		return null;
 	}
 
@@ -238,10 +230,7 @@ export function armGithubPoller(
 					if (arr) arr[triggerIndex] = h as unknown as ReturnType<typeof setInterval>;
 				},
 				(err) => {
-					console.error(
-						`[pi-routines] github poller unexpected error for '${routine.name}':`,
-						err,
-					);
+					console.error(`[pi-routines] github poller unexpected error for '${routine.name}':`, err);
 				},
 			);
 		}, delay);
