@@ -53,36 +53,6 @@
     },
     {
       "type": "file",
-      "name": "src/tools/_mutate.ts",
-      "file": "src/tools/_mutate.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/_resolve.ts",
-      "file": "src/tools/_resolve.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/routine-create.ts",
-      "file": "src/tools/routine-create.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/routine-delete.ts",
-      "file": "src/tools/routine-delete.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/routine-list.ts",
-      "file": "src/tools/routine-list.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/routine-set-state.ts",
-      "file": "src/tools/routine-set-state.ts"
-    },
-    {
-      "type": "file",
       "name": "src/commands/routine-export-cron.ts",
       "file": "src/commands/routine-export-cron.ts"
     },
@@ -110,6 +80,36 @@
       "type": "file",
       "name": "src/commands/routines.ts",
       "file": "src/commands/routines.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/_mutate.ts",
+      "file": "src/tools/_mutate.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/_resolve.ts",
+      "file": "src/tools/_resolve.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-create.ts",
+      "file": "src/tools/routine-create.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-delete.ts",
+      "file": "src/tools/routine-delete.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-list.ts",
+      "file": "src/tools/routine-list.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-set-state.ts",
+      "file": "src/tools/routine-set-state.ts"
     },
     {
       "type": "dependency",
@@ -178,36 +178,6 @@
     },
     {
       "type": "file",
-      "name": "src/tools/_mutate.ts",
-      "file": "src/tools/_mutate.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/_resolve.ts",
-      "file": "src/tools/_resolve.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/routine-create.ts",
-      "file": "src/tools/routine-create.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/routine-delete.ts",
-      "file": "src/tools/routine-delete.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/routine-list.ts",
-      "file": "src/tools/routine-list.ts"
-    },
-    {
-      "type": "file",
-      "name": "src/tools/routine-set-state.ts",
-      "file": "src/tools/routine-set-state.ts"
-    },
-    {
-      "type": "file",
       "name": "src/commands/routine-export-cron.ts",
       "file": "src/commands/routine-export-cron.ts"
     },
@@ -235,6 +205,36 @@
       "type": "file",
       "name": "src/commands/routines.ts",
       "file": "src/commands/routines.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/_mutate.ts",
+      "file": "src/tools/_mutate.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/_resolve.ts",
+      "file": "src/tools/_resolve.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-create.ts",
+      "file": "src/tools/routine-create.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-delete.ts",
+      "file": "src/tools/routine-delete.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-list.ts",
+      "file": "src/tools/routine-list.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-set-state.ts",
+      "file": "src/tools/routine-set-state.ts"
     }
   ],
   "unusedDeps": [

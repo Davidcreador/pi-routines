@@ -1,10 +1,10 @@
 # TP-006: Hooks & Entry Point — Status
 
-**Current Step:** Step 1: src/hooks.ts
-**Status:** 🟡 In Progress
+**Current Step:** Step 5: Documentation & Delivery
+**Status:** ✅ Complete
 **Last Updated:** 2026-05-20
 **Review Level:** 2
-**Review Counter:** 1
+**Review Counter:** 3
 **Iteration:** 1
 **Size:** M
 
@@ -19,7 +19,7 @@
 ---
 
 ### Step 1: src/hooks.ts
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
 - [x] `session_start` handler with daily/per-session guards
 - [x] `agent_end` handler with recursion guard release + at-most-one hook
@@ -29,7 +29,7 @@
 ---
 
 ### Step 2: extensions/index.ts
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
 - [x] Hot-reload cleanup via `globalThis` store key
 - [x] Single runtime instance
@@ -54,7 +54,7 @@
 ---
 
 ### Step 4: Testing & Verification
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
 - [x] `pnpm typecheck` zero errors
 - [x] `pnpm test` exits 0 (placeholder `echo` script per package.json)
@@ -63,7 +63,7 @@
 ---
 
 ### Step 5: Documentation & Delivery
-**Status:** 🟨 In Progress
+**Status:** ✅ Complete
 
 - [x] `README.md` at repo root
 - [x] JSDoc on both new modules
@@ -75,6 +75,9 @@
 
 | # | Type | Step | Verdict | File |
 |---|------|------|---------|------|
+| 1 | plan | 1 | APPROVE | .reviews/R001-plan-step1.md |
+| 2 | code | 1 | APPROVE | (reviewer inline) |
+| 3 | code | 2 | APPROVE | (reviewer inline) |
 
 ---
 
@@ -106,3 +109,5 @@
 - Manual smoke test (install via `~/.pi/agent/settings.json` → `/routine 30s say hi` … → restore backup) deferred: orchestrated lane has no interactive pi binary. README documents the install path. `pnpm typecheck` is the green gate.
 - Tagging `v0.1.0` candidate is symbolic only — PROMPT explicitly says "do not actually publish to npm"; no `git tag` was created (out of scope for a worker commit).
 | 2026-05-20 00:58 | Review R001 | plan Step 1: APPROVE |
+| 2026-05-20 01:04 | Review R002 | code Step 2: APPROVE |
+| 2026-05-20 01:06 | Review R003 | code Step 1: APPROVE |
