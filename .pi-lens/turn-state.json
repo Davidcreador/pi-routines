@@ -1,0 +1,67 @@
+{
+  "files": {
+    "taskplane-tasks/TP-001-foundation/STATUS.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 134
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:19:57.085Z"
+    },
+    "src/types.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 175
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:20:02.184Z"
+    },
+    "src/parser.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 167
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:20:02.243Z"
+    },
+    "src/store.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 99
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:20:02.298Z"
+    },
+    "src/guard.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 101
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:20:02.353Z"
+    },
+    "taskplane-tasks/CONTEXT.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 92
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:20:02.541Z"
+    }
+  },
+  "turnCycles": 0,
+  "maxCycles": 3,
+  "lastUpdated": "2026-05-20T00:20:02.541Z"
+}

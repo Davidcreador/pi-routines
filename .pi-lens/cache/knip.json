@@ -1,0 +1,76 @@
+{
+  "success": true,
+  "issues": [
+    {
+      "type": "file",
+      "name": "src/guard.ts",
+      "file": "src/guard.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/parser.ts",
+      "file": "src/parser.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/store.ts",
+      "file": "src/store.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/types.ts",
+      "file": "src/types.ts"
+    },
+    {
+      "type": "dependency",
+      "name": "typebox",
+      "file": "package.json",
+      "line": 19
+    },
+    {
+      "type": "dependency",
+      "name": "nanoid",
+      "file": "package.json",
+      "line": 20
+    }
+  ],
+  "unusedExports": [],
+  "unusedFiles": [
+    {
+      "type": "file",
+      "name": "src/guard.ts",
+      "file": "src/guard.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/parser.ts",
+      "file": "src/parser.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/store.ts",
+      "file": "src/store.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/types.ts",
+      "file": "src/types.ts"
+    }
+  ],
+  "unusedDeps": [
+    {
+      "type": "dependency",
+      "name": "typebox",
+      "file": "package.json",
+      "line": 19
+    },
+    {
+      "type": "dependency",
+      "name": "nanoid",
+      "file": "package.json",
+      "line": 20
+    }
+  ],
+  "unlistedDeps": [],
+  "summary": "Found 6 issues"
+}
