@@ -1,10 +1,10 @@
 # TP-001: Foundation — Status
 
-**Current Step:** Step 2: src/types.ts
+**Current Step:** Step 3: src/parser.ts
 **Status:** 🟡 In Progress
 **Last Updated:** 2026-05-20
 **Review Level:** 1
-**Review Counter:** 1
+**Review Counter:** 2
 **Iteration:** 1
 **Size:** M
 
@@ -33,11 +33,11 @@
 ---
 
 ### Step 2: src/types.ts
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Define all shared types from PLAN.md Phase 1
-- [ ] Export constants (`SILENT_TOKEN`, limits, paths)
-- [ ] JSDoc on every exported symbol
+- [x] Define all shared types from PLAN.md Phase 1
+- [x] Export constants (`SILENT_TOKEN`, limits, paths)
+- [x] JSDoc on every exported symbol
 
 ---
 
@@ -119,3 +119,4 @@
 
 *Reserved for execution notes*
 | 2026-05-20 00:11 | Review R001 | plan Step 1: APPROVE |
+| 2026-05-20 00:13 | Review R002 | plan Step 2: APPROVE |

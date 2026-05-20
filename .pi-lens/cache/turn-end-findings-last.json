@@ -1,0 +1,4 @@
+{
+  "signature": "src/types.ts::Unresolved from this turn — src/types.ts:\n🔴 STOP — 1 issue(s) must be fixed:\n  L157: Hardcoded secret in variable assignment — use environment variables\n    💡 Fix: Move secret material to environment/secret manager and read it at runtime.",
+  "sessionId": "lens-mpdb28ll-00925581"
+}

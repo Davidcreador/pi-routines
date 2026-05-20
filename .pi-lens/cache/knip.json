@@ -3,8 +3,8 @@
   "issues": [
     {
       "type": "file",
-      "name": "src/_placeholder.ts",
-      "file": "src/_placeholder.ts"
+      "name": "src/types.ts",
+      "file": "src/types.ts"
     },
     {
       "type": "dependency",
@@ -23,8 +23,8 @@
   "unusedFiles": [
     {
       "type": "file",
-      "name": "src/_placeholder.ts",
-      "file": "src/_placeholder.ts"
+      "name": "src/types.ts",
+      "file": "src/types.ts"
     }
   ],
   "unusedDeps": [
