@@ -87,20 +87,20 @@ export function registerRoutineExportCronCommand(
 				send(pi, `No routine matched '${target}'. Use /routines to list, or check the name.`);
 				return;
 			}
-			if (routine.trigger.kind === "hook") {
+			const pulse = routine.triggers.find((t) => t.kind === "pulse");
+			if (!pulse) {
 				send(
 					pi,
-					"Hook routines fire on Pi events (session_start, agent_end, " +
-						"session_shutdown) and have no time component — they can't be " +
-						"exported to cron. Use a pulse routine if you need time-based " +
+					"Only pulse triggers can be exported to cron. This routine has no " +
+						"pulse trigger — use a pulse routine if you need time-based " +
 						"persistence outside Pi.",
 				);
 				return;
 			}
-			if (routine.trigger.intervalMs > MAX_CRON_MS) {
+			if (pulse.intervalMs > MAX_CRON_MS) {
 				send(
 					pi,
-					`Interval ${routine.trigger.intervalHuman} is longer than 60m; cron's */N syntax ` +
+					`Interval ${pulse.intervalHuman} is longer than 60m; cron's */N syntax ` +
 						"can't represent it cleanly. Set a daily cron manually, e.g. `0 9 * * *`, " +
 						"pointing at the prompt file this command would have written.",
 				);
@@ -119,10 +119,10 @@ export function registerRoutineExportCronCommand(
 			const promptFile = path.join(promptsDir, `${routine.name}.txt`);
 			const label = `com.pi-routines.${routine.name}`;
 			const plistFile = path.join(launchdDir, `${label}.plist`);
-			const cronLine = `${cronSchedule(routine.trigger.intervalMs)} pi --print "$(cat ${promptFile})"`;
+			const cronLine = `${cronSchedule(pulse.intervalMs)} pi --print "$(cat ${promptFile})"`;
 			const plistBody = buildPlist(
 				label,
-				Math.max(60, Math.floor(routine.trigger.intervalMs / 1000)),
+				Math.max(60, Math.floor(pulse.intervalMs / 1000)),
 				promptFile,
 			);
 
@@ -137,7 +137,7 @@ export function registerRoutineExportCronCommand(
 			}
 
 			const out = [
-				`Exported '${routine.name}' (fires every ${routine.trigger.intervalHuman}).`,
+				`Exported '${routine.name}' (fires every ${pulse.intervalHuman}).`,
 				"",
 				`Prompt file: ${promptFile}`,
 				`launchd plist: ${plistFile}`,

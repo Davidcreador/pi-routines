@@ -15,12 +15,49 @@
 
 import { promises as fs } from "node:fs";
 import { dirname } from "node:path";
-import type { RoutineStore } from "./types.ts";
-import { STATE_FILE } from "./types.ts";
+import type { RoutineStore, RoutineTrigger } from "./types.ts";
+import { SCHEMA_VERSION, STATE_FILE } from "./types.ts";
 
 /** Fresh, empty store. */
 export function emptyStore(): RoutineStore {
-	return { routines: {}, tickState: {} };
+	return { schemaVersion: SCHEMA_VERSION, routines: {}, tickState: {} };
+}
+
+/**
+ * One-way migration from v1 (no `schemaVersion`, `trigger: RoutineTrigger`)
+ * to v2 (`schemaVersion: 2`, `triggers: RoutineTrigger[]`).
+ *
+ * - Wraps each routine's singular `trigger` into a single-element
+ *   `triggers` array.
+ * - Drops the old `trigger` field.
+ * - Idempotent: if already v2, returns the input unchanged.
+ */
+export function migrateV1ToV2(raw: unknown): RoutineStore {
+	const empty = emptyStore();
+	if (!raw || typeof raw !== "object") return empty;
+	const obj = raw as Record<string, unknown>;
+
+	const routinesIn = (obj.routines ?? {}) as Record<string, Record<string, unknown>>;
+	const routinesOut: Record<string, Record<string, unknown>> = {};
+	for (const [id, r] of Object.entries(routinesIn)) {
+		if (!r || typeof r !== "object") continue;
+		let triggers: RoutineTrigger[];
+		if (Array.isArray(r.triggers)) {
+			triggers = r.triggers as RoutineTrigger[];
+		} else if (r.trigger && typeof r.trigger === "object") {
+			triggers = [r.trigger as RoutineTrigger];
+		} else {
+			triggers = [];
+		}
+		const { trigger: _drop, ...rest } = r as { trigger?: unknown } & Record<string, unknown>;
+		routinesOut[id] = { ...rest, triggers };
+	}
+
+	return {
+		schemaVersion: SCHEMA_VERSION,
+		routines: routinesOut as unknown as RoutineStore["routines"],
+		tickState: (obj.tickState ?? {}) as RoutineStore["tickState"],
+	};
 }
 
 /**
@@ -31,18 +68,9 @@ export function emptyStore(): RoutineStore {
  * on corruption recovery so the operator can investigate.
  */
 export async function loadStore(): Promise<RoutineStore> {
+	let raw: string;
 	try {
-		const raw = await fs.readFile(STATE_FILE, "utf8");
-		try {
-			const parsed = JSON.parse(raw) as Partial<RoutineStore>;
-			return {
-				routines: parsed.routines ?? {},
-				tickState: parsed.tickState ?? {},
-			};
-		} catch (err) {
-			console.warn(`[pi-routines] state.json corrupt, starting fresh: ${(err as Error).message}`);
-			return emptyStore();
-		}
+		raw = await fs.readFile(STATE_FILE, "utf8");
 	} catch (err) {
 		const code = (err as NodeJS.ErrnoException).code;
 		if (code !== "ENOENT") {
@@ -50,6 +78,32 @@ export async function loadStore(): Promise<RoutineStore> {
 				`[pi-routines] could not read state.json (${code ?? "unknown"}): ${(err as Error).message}`,
 			);
 		}
+		return emptyStore();
+	}
+
+	try {
+		const parsed = JSON.parse(raw) as Record<string, unknown>;
+		const version = typeof parsed.schemaVersion === "number" ? parsed.schemaVersion : 1;
+		if (version >= SCHEMA_VERSION) {
+			return {
+				schemaVersion: SCHEMA_VERSION,
+				routines: (parsed.routines ?? {}) as RoutineStore["routines"],
+				tickState: (parsed.tickState ?? {}) as RoutineStore["tickState"],
+			};
+		}
+		// v1 → v2: back up raw, write migrated atomically.
+		const migrated = migrateV1ToV2(parsed);
+		try {
+			await fs.mkdir(dirname(STATE_FILE), { recursive: true });
+			await fs.writeFile(`${STATE_FILE}.v1.bak`, raw, "utf8");
+		} catch (err) {
+			console.warn(`[pi-routines] could not write .v1.bak: ${(err as Error).message}`);
+		}
+		await saveStore(migrated);
+		console.warn("[pi-routines] migrated state.json to v2");
+		return migrated;
+	} catch (err) {
+		console.warn(`[pi-routines] state.json corrupt, starting fresh: ${(err as Error).message}`);
 		return emptyStore();
 	}
 }

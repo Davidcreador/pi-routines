@@ -22,6 +22,33 @@ export interface PulseTrigger {
 	intervalMs: number;
 	/** Original human-readable string, e.g. "5m", "1h30m". */
 	intervalHuman: string;
+	/** Optional IANA timezone, e.g. "America/Los_Angeles". Reserved for
+	 *  cron-equivalent semantics; ignored by the simple interval scheduler. */
+	timezone?: string;
+}
+
+/**
+ * Cron trigger: fires on a 5-field POSIX cron expression.
+ *
+ * Fields: `minute hour day-of-month month day-of-week`.
+ * Supports `*`, `*\/n`, `a,b,c`, `a-b`. Seconds field, `?`, `L`, `#`
+ * are rejected by {@link parseCron}.
+ */
+export interface CronTrigger {
+	kind: "cron";
+	/** Raw cron expression, e.g. `"0 9 * * 1-5"`. */
+	expr: string;
+	/** Optional IANA timezone. Defaults to system local time. */
+	timezone?: string;
+}
+
+/** One-off trigger: fires once at an absolute timestamp. */
+export interface OneOffTrigger {
+	kind: "oneoff";
+	/** ISO-8601 timestamp. May be UTC (`...Z`) or local-in-`timezone`. */
+	fireAtIso: string;
+	/** Optional IANA timezone (used when `fireAtIso` has no offset). */
+	timezone?: string;
 }
 
 /** Lifecycle events a hook routine can subscribe to. */
@@ -40,7 +67,7 @@ export interface HookTrigger {
 }
 
 /** Union of all trigger kinds. */
-export type RoutineTrigger = PulseTrigger | HookTrigger;
+export type RoutineTrigger = PulseTrigger | CronTrigger | OneOffTrigger | HookTrigger;
 
 // ─── Context modes ───────────────────────────────────────────────────────────
 
@@ -63,7 +90,12 @@ export interface Routine {
 	name: string;
 	/** Prompt text sent to the LLM when the routine fires. */
 	prompt: string;
-	trigger: RoutineTrigger;
+	/**
+	 * One or more triggers. v1 routines (single `trigger`) are migrated to a
+	 * single-element array by {@link migrateV1ToV2}. ANY trigger firing
+	 * enqueues the routine once.
+	 */
+	triggers: RoutineTrigger[];
 	context: RoutineContext;
 	/** If true, suppress `[~]` "nothing to report" responses in chat. */
 	quiet: boolean;
@@ -91,6 +123,8 @@ export interface RoutineTickState {
 
 /** What gets written to state.json. */
 export interface RoutineStore {
+	/** Persisted store schema version. Files without this field are v1. */
+	schemaVersion: typeof SCHEMA_VERSION;
 	/** Keyed by {@link Routine.id}. */
 	routines: Record<string, Routine>;
 	/** Keyed by {@link Routine.id}. */
@@ -102,8 +136,12 @@ export interface RoutineStore {
 /** In-memory runtime state. Reconstructed on session_start; not persisted. */
 export interface RoutineRuntimeState {
 	store: RoutineStore;
-	/** routine id → active setInterval handle. */
-	timers: Map<string, ReturnType<typeof setInterval>>;
+	/**
+	 * routine id → list of active timer handles (one per trigger).
+	 * Ordered by trigger index; entries may be `null` for fired-and-spent
+	 * one-off triggers.
+	 */
+	timers: Map<string, Array<ReturnType<typeof setInterval> | null>>;
 	/** routine ids waiting for an idle slot (FIFO, deduped). */
 	queue: string[];
 	/** Recursion guard — set true while a routine turn is in flight. */
@@ -160,6 +198,14 @@ export const MAX_QUEUE_DEPTH = 3;
 
 /** Max per-routine userState size in bytes (JSON.stringify). */
 export const MAX_USER_STATE_BYTES = 2048;
+
+/** Current persisted-store schema version. v1 had no field; v2 introduces
+ *  `triggers: RoutineTrigger[]` and adds `cron` + `oneoff` kinds. */
+export const SCHEMA_VERSION = 2 as const;
+
+/** Window within which fires from distinct triggers on the same routine
+ *  collapse into a single enqueue (multi-trigger dedup). */
+export const MULTI_TRIGGER_COLLAPSE_MS = 500;
 
 /**
  * Absolute path of the persisted state file.

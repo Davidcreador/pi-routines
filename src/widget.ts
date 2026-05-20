@@ -60,8 +60,10 @@ export function startWidgetRefresh(
 	getCtx: () => ExtensionContext | null,
 	intervalMs: number = DEFAULT_REFRESH_MS,
 ): () => void {
-	const hasPulse = Object.values(runtime.store.routines).some((r) => r.trigger.kind === "pulse");
-	if (!hasPulse) return () => {};
+	const hasTimed = Object.values(runtime.store.routines).some((r) =>
+		r.triggers.some((t) => t.kind === "pulse" || t.kind === "cron" || t.kind === "oneoff"),
+	);
+	if (!hasTimed) return () => {};
 
 	const handle = setInterval(() => {
 		const ctx = getCtx();
@@ -88,10 +90,11 @@ function formatStatus(routines: Routine[], runtime: RoutineRuntimeState): string
 }
 
 function tag(routine: Routine, runtime: RoutineRuntimeState): string {
-	if (routine.trigger.kind === "hook") {
-		return routine.trigger.event;
-	}
-	// Pulse
+	const primary = routine.triggers[0];
+	if (!primary) return "-";
+	if (primary.kind === "hook") return primary.event;
+	if (primary.kind === "cron") return `cron`;
+	if (primary.kind === "oneoff") return `1x`;
 	const tickState = runtime.store.tickState[routine.id];
 	if (routine.quiet) {
 		return `q·${tickState?.tickCount ?? 0}`;
@@ -101,8 +104,9 @@ function tag(routine: Routine, runtime: RoutineRuntimeState): string {
 }
 
 function minutesUntilNext(routine: Routine, lastFiredAt: number | undefined): number {
-	if (routine.trigger.kind !== "pulse") return 0;
-	const interval = routine.trigger.intervalMs;
+	const primary = routine.triggers[0];
+	if (!primary || primary.kind !== "pulse") return 0;
+	const interval = primary.intervalMs;
 	const anchor = lastFiredAt ?? routine.createdAt;
 	const elapsedInCycle = (Date.now() - anchor) % interval;
 	const remainingMs = interval - elapsedInCycle;

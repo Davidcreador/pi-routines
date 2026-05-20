@@ -63,7 +63,14 @@ export type DeleteRoutineResult = DeleteRoutineSuccess | MutateError;
 /** Compact human description of a resolved trigger (post-parse). */
 export function describeTrigger(t: RoutineTrigger): string {
 	if (t.kind === "pulse") return `every ${t.intervalHuman}`;
+	if (t.kind === "cron") return `cron '${t.expr}'${t.timezone ? ` ${t.timezone}` : ""}`;
+	if (t.kind === "oneoff") return `at ${t.fireAtIso}`;
 	return t.once ? `on ${t.event} (${t.once})` : `on ${t.event}`;
+}
+
+/** Compact human description for a routine's full trigger set. */
+export function describeTriggers(triggers: RoutineTrigger[]): string {
+	return triggers.map(describeTrigger).join(" + ");
 }
 
 /**
@@ -137,7 +144,9 @@ export async function createRoutine(
 
 	if (resolvedTrigger.kind === "hook" && resolvedTrigger.event === "agent_end") {
 		const conflict = Object.values(runtime.store.routines).find(
-			(r) => r.trigger.kind === "hook" && r.trigger.event === "agent_end" && r.id !== existing?.id,
+			(r) =>
+				r.id !== existing?.id &&
+				r.triggers.some((t) => t.kind === "hook" && t.event === "agent_end"),
 		);
 		if (conflict) {
 			return {
@@ -159,25 +168,17 @@ export async function createRoutine(
 		routine = {
 			...existing,
 			prompt,
-			trigger: resolvedTrigger,
+			triggers: [resolvedTrigger],
 			quiet: quiet ?? existing.quiet ?? false,
 			...(maxTicks !== undefined ? { maxTicks } : { maxTicks: existing.maxTicks }),
 		};
-		const old = existing.trigger;
-		const intervalChanged =
-			old.kind !== resolvedTrigger.kind ||
-			(old.kind === "pulse" &&
-				resolvedTrigger.kind === "pulse" &&
-				old.intervalMs !== resolvedTrigger.intervalMs);
-		if (intervalChanged) {
-			unscheduleRoutine(existing.id, runtime);
-		}
+		unscheduleRoutine(existing.id, runtime);
 	} else {
 		routine = {
 			id: nanoid(),
 			name,
 			prompt,
-			trigger: resolvedTrigger,
+			triggers: [resolvedTrigger],
 			context: "session",
 			quiet: quiet ?? false,
 			...(maxTicks !== undefined ? { maxTicks } : {}),
@@ -194,18 +195,17 @@ export async function createRoutine(
 	runtime.store.routines[routine.id] = routine;
 	await saveStore(runtime.store);
 
-	if (routine.trigger.kind === "pulse") {
-		scheduleRoutine(routine, runtime, pi, getCtx);
-	}
+	scheduleRoutine(routine, runtime, pi, getCtx);
 
+	const primary = routine.triggers[0];
 	const result: CreateRoutineSuccess = {
 		id: routine.id,
 		name: routine.name,
-		triggerDescription: describeTrigger(routine.trigger),
+		triggerDescription: describeTriggers(routine.triggers),
 		updated: Boolean(existing),
 	};
-	if (routine.trigger.kind === "pulse") {
-		result.nextFireIn = routine.trigger.intervalHuman;
+	if (primary && primary.kind === "pulse") {
+		result.nextFireIn = primary.intervalHuman;
 	}
 	return result;
 }
@@ -227,9 +227,7 @@ export async function deleteRoutine(
 			error: `No routine matched '${idOrName}'. Current routines: ${listRoutineNames(runtime)}.`,
 		};
 	}
-	if (routine.trigger.kind === "pulse") {
-		unscheduleRoutine(routine.id, runtime);
-	}
+	unscheduleRoutine(routine.id, runtime);
 	delete runtime.store.routines[routine.id];
 	delete runtime.store.tickState[routine.id];
 	await saveStore(runtime.store);
