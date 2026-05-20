@@ -1,6 +1,37 @@
 {
-  "files": {},
+  "files": {
+    "taskplane-tasks/TP-003-suppressor-widget/STATUS.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 95
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:27:25.665Z"
+    },
+    "src/widget.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 129
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:27:25.810Z"
+    },
+    "taskplane-tasks/TP-003-suppressor-widget/PROMPT.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 195
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:27:25.936Z"
+    }
+  },
   "turnCycles": 0,
   "maxCycles": 3,
-  "lastUpdated": "2026-05-20T00:27:20.462Z"
+  "lastUpdated": "2026-05-20T00:27:25.936Z"
 }

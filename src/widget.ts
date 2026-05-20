@@ -90,7 +90,9 @@ function formatStatus(
 ): string {
 	const head = routines.slice(0, MAX_DISPLAYED);
 	const rest = routines.length - head.length;
-	const entries = head.map((r) => `${truncateName(r.name)}(${tag(r, runtime)})`);
+	const entries = head.map(
+		(r) => `${truncateName(r.name)}(${tag(r, runtime)})`,
+	);
 	const tail = rest > 0 ? `  +${rest} more` : "";
 	return `↺ ${routines.length} active  ${entries.join(" · ")}${tail}`;
 }

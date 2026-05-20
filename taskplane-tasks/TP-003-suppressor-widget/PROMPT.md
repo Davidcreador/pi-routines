@@ -35,9 +35,11 @@ status line; (2) maintain a footer status line showing active routine state.
 ## Context to Read First
 
 **Tier 2 (area context):**
+
 - `taskplane-tasks/CONTEXT.md`
 
 **Tier 3:**
+
 - `PLAN.md` — Phases 7 (Suppressor) and 8 (Widget)
 - `src/types.ts` — for `SILENT_TOKEN`, `RoutineRuntimeState`
 
@@ -90,6 +92,7 @@ Implement exactly as specified in `PLAN.md` Phase 7.
 - Message has image blocks only → no text, return `undefined`
 
 **Artifacts:**
+
 - `src/suppressor.ts` (new)
 
 ### Step 2: `src/widget.ts`
@@ -97,12 +100,12 @@ Implement exactly as specified in `PLAN.md` Phase 7.
 Implement exactly as specified in `PLAN.md` Phase 8.
 
 - [ ] Export `updateWidget(runtime, ctx): void` — recomputes status text and
-  calls `ctx.ui.setStatus("routines", text)`. No-op if `!ctx.hasUI`.
+      calls `ctx.ui.setStatus("routines", text)`. No-op if `!ctx.hasUI`.
 - [ ] Export `startWidgetRefresh(runtime, getCtx, intervalMs?): () => void` —
-  starts a low-frequency interval (default 10s) that calls `updateWidget` to
-  keep "next fire in Xm" countdowns accurate. Returns a stop function. If no
-  pulse routines are active, returns a no-op stop function and does NOT start
-  the interval.
+      starts a low-frequency interval (default 10s) that calls `updateWidget` to
+      keep "next fire in Xm" countdowns accurate. Returns a stop function. If no
+      pulse routines are active, returns a no-op stop function and does NOT start
+      the interval.
 - [ ] Export `clearWidget(ctx): void` — calls `ctx.ui.setStatus("routines", undefined)`
 - [ ] Status text format: `↺ <N> active  <name1>(<status1>) · <name2>(<status2>) ...`
   - For quiet routines: `(q·<tickCount>)`
@@ -124,6 +127,7 @@ Implement exactly as specified in `PLAN.md` Phase 8.
   stop function must be idempotent.
 
 **Artifacts:**
+
 - `src/widget.ts` (new)
 
 ### Step 3: Testing & Verification
@@ -138,14 +142,16 @@ Implement exactly as specified in `PLAN.md` Phase 8.
 
 - [ ] File-header JSDoc on both modules
 - [ ] If the `text.trim() === SILENT_TOKEN` correction was needed, log it in
-  `taskplane-tasks/CONTEXT.md` Discoveries
+      `taskplane-tasks/CONTEXT.md` Discoveries
 
 ## Documentation Requirements
 
 **Must Update:**
+
 - `taskplane-tasks/CONTEXT.md` — Discoveries table
 
 **Check If Affected:**
+
 - `PLAN.md` — do not modify; log via Amendment
 
 ## Completion Criteria
