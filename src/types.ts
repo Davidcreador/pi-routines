@@ -311,27 +311,45 @@ export interface ParsedInterval {
 
 // ─── Template definition (templates/*.json) ──────────────────────────────────
 
-/** JSON shape for a bundled routine template. */
+/**
+ * JSON shape for a bundled routine template. Supports the same union of
+ * triggers as {@link Routine.triggers}, plus a `triggers: [...]` array form
+ * for multi-trigger templates. Use the raw (pre-parse) field names that
+ * `_mutate.createRoutine` accepts (`interval`, `expr`, `fireAtIso`,
+ * `pollInterval`, etc.) — installer code passes them through unmodified.
+ */
 export interface RoutineTemplate {
 	/** Template id, e.g. "ci-watch". */
 	name: string;
 	/** One-line description shown in `/routine-template`. */
 	description: string;
-	trigger:
+	/**
+	 * Single trigger (back-compat with v0.1 templates). Either this OR
+	 * {@link triggers} (or both — they concatenate) must be present.
+	 */
+	trigger?:
+		| { kind: "pulse"; interval: string }
+		| { kind: "cron"; expr: string; timezone?: string }
+		| { kind: "oneoff"; fireAtIso: string; timezone?: string }
+		| { kind: "hook"; event: HookEvent; once?: "daily" | "per_session" }
+		| { kind: "api"; allowArgs?: boolean }
 		| {
-				kind: "pulse";
-				/** Human interval string, parsed at install time. */
-				interval: string;
-		  }
-		| {
-				kind: "hook";
-				event: HookEvent;
-				once?: "daily" | "per_session";
+				kind: "github";
+				repo: string;
+				event: "pull_request.opened" | "pull_request.closed" | "issues.opened" | "push";
+				pollInterval?: string;
+				filter?: { labels?: string[]; branches?: string[]; mergedOnly?: boolean };
 		  };
-	/** Prompt body. May contain `{cwd}`, `{date}`, `{time}` placeholders. */
+	/** Multi-trigger array form. Same union element as `trigger` above. */
+	triggers?: NonNullable<RoutineTemplate["trigger"]>[];
+	/**
+	 * Prompt body. May contain `{cwd}`, `{date}`, `{time}`, `{state}`,
+	 * `{tickCount}`, `{apiArgs}`, `{githubEvent}` placeholders.
+	 */
 	prompt: string;
 	quiet: boolean;
 	maxTicks?: number;
+	maxRunsPerDay?: number;
 	/** Tool names to check at install time (warns, does not block). */
 	requiredTools?: string[];
 }

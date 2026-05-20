@@ -1,0 +1,7 @@
+{
+  "name": "api-webhook",
+  "description": "API-triggered routine that reacts to an external webhook payload",
+  "trigger": { "kind": "api", "allowArgs": true },
+  "prompt": "An external system fired this routine via the API trigger.\n\nPayload (raw JSON):\n{apiArgs}\n\nDo the following:\n1. Parse the payload and identify what changed or what needs attention (e.g. alert id, deploy status, build number).\n2. Take whatever follow-up action makes sense given the available tools — for example: open a draft PR with a proposed fix, post a summary, file an issue, or run a smoke test.\n3. Briefly report what you did and why.\n\nAfter installing this template, start the local API server and generate a bearer token:\n  /routine-server start\n  /routine-token generate api-webhook\nThen POST to http://127.0.0.1:7424/routines/<id>/trigger with body `{\"args\": { ... }}` and `Authorization: Bearer <token>`.",
+  "quiet": false
+}
