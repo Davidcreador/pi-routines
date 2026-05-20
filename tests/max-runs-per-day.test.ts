@@ -11,10 +11,11 @@ import { strict as assert } from "node:assert";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { afterEach, beforeEach, describe, it, mock } from "node:test";
+import { after, afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-// Redirect HOME so saveStore writes to a temp dir.
+// Redirect HOME so saveStore writes to a temp dir. We must do this BEFORE
+// importing modules that capture STATE_FILE at module load.
 const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-cap-"));
 const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
@@ -23,6 +24,16 @@ const { fireRoutine } = await import("../src/executor.ts");
 const { emptyStore } = await import("../src/store.ts");
 
 import type { Routine, RoutineRuntimeState } from "../src/types.ts";
+
+// Restore HOME and remove the temp dir when this test file's suites finish.
+// Previous version used `process.on("exit", () => require(...))` which is a
+// no-op in ESM (`require` is undefined; the try/catch swallowed the
+// ReferenceError), leaking the temp dir at process exit.
+after(async () => {
+	if (origHome === undefined) delete process.env.HOME;
+	else process.env.HOME = origHome;
+	await fs.rm(tmpHome, { recursive: true, force: true });
+});
 
 function makeRuntime(): RoutineRuntimeState {
 	return {
@@ -149,6 +160,27 @@ describe("fireRoutine — maxRunsPerDay", () => {
 		assert.equal(rt.isRoutineTurnActive, true);
 	});
 
+	it("manual fires do NOT increment runsToday (cap is for automatic fires)", async () => {
+		const rt = makeRuntime();
+		const routine = makeRoutine({ maxRunsPerDay: 3 });
+		rt.store.routines[routine.id] = routine;
+		const today = new Date().toLocaleDateString("en-CA");
+		rt.store.tickState[routine.id] = {
+			tickCount: 0,
+			lastFiredAt: 0,
+			lastFiredDateLocal: "",
+			userState: {},
+			runsToday: 0,
+			runsTodayDate: today,
+		};
+		rt.triggerOrigin.set(routine.id, { index: -1, kind: "manual" });
+		await fireRoutine(routine, rt, rt.store, fakePi, fakeCtx);
+		// tickCount still bumps (every fire counts toward maxTicks), but
+		// runsToday stays at 0 so the cap remains untouched.
+		assert.equal(rt.store.tickState[routine.id]?.tickCount, 1);
+		assert.equal(rt.store.tickState[routine.id]?.runsToday, 0);
+	});
+
 	it("no cap field → no enforcement (current behaviour preserved)", async () => {
 		const rt = makeRuntime();
 		const routine = makeRoutine(); // no maxRunsPerDay
@@ -167,17 +199,4 @@ describe("fireRoutine — maxRunsPerDay", () => {
 		}
 		assert.equal(rt.store.tickState[routine.id]?.runsToday, 5);
 	});
-});
-
-// Cleanup test HOME at module unload (no native afterAll, but importing
-// modules is one-shot per test file so this runs in test teardown order).
-process.on("exit", () => {
-	try {
-		// best-effort sync cleanup
-		require("node:fs").rmSync(tmpHome, { recursive: true, force: true });
-	} catch {
-		/* ignore */
-	}
-	if (origHome === undefined) delete process.env.HOME;
-	else process.env.HOME = origHome;
 });

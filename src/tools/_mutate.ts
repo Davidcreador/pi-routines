@@ -366,7 +366,8 @@ export async function createRoutine(
 
 /**
  * Delete a routine by id or (case-insensitive) name. Unschedules any pulse
- * timer and persists the store.
+ * timer, drops any in-flight per-routine runtime state (queued trigger
+ * origin, pending api args, pending github event), and persists the store.
  */
 export async function deleteRoutine(
 	idOrName: string,
@@ -382,6 +383,14 @@ export async function deleteRoutine(
 		};
 	}
 	unscheduleRoutine(routine.id, runtime);
+	// Drop transient per-routine maps so they don't leak orphan entries
+	// when a routine is removed mid-queue or with a pending api/github fire.
+	runtime.triggerOrigin.delete(routine.id);
+	runtime.apiArgs?.delete(routine.id);
+	runtime.githubEvents?.delete(routine.id);
+	// Drop the routine from any pending queue position.
+	const queueIdx = runtime.queue.indexOf(routine.id);
+	if (queueIdx >= 0) runtime.queue.splice(queueIdx, 1);
 	delete runtime.store.routines[routine.id];
 	delete runtime.store.tickState[routine.id];
 	await saveStore(runtime.store);

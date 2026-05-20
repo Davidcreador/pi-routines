@@ -260,6 +260,13 @@ async function tickGithub(
 	const tmap = getTickerMap(runtime);
 	const tstate = tmap.get(key) ?? { backoffMs: interval, ghMissingLogged: false };
 
+	// Paused routines skip the gh api call entirely — no point burning the
+	// authenticated user's rate-limit budget on a routine that can't fire.
+	// We still re-arm at the normal interval so resume is instantaneous.
+	if (live.paused) {
+		return interval;
+	}
+
 	const result = await ghRunner(["api", endpointFor(trig)]);
 
 	if (!result.ok) {

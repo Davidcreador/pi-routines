@@ -22,6 +22,7 @@ import { fireRoutine } from "./executor.ts";
 import { armGithubPoller } from "./github-poller.ts";
 import * as guard from "./guard.ts";
 import { nextCronFire, parseOneOff } from "./parser.ts";
+import { saveStore } from "./store.ts";
 import type { Routine, RoutineRuntimeState, RoutineTrigger } from "./types.ts";
 import { MAX_QUEUE_DEPTH, MULTI_TRIGGER_COLLAPSE_MS } from "./types.ts";
 
@@ -135,19 +136,34 @@ function armTrigger(
 			}
 		}
 		case "oneoff": {
+			// Spent — silently skip. The post-fire callback below sets this.
+			if (trigger.fired) return null;
+			let at: Date;
 			try {
-				const at = parseOneOff(trigger.fireAtIso, trigger.timezone);
-				const delay = Math.max(0, at.getTime() - Date.now());
-				return setTimeout(() => {
-					onFire();
-					// One-off self-clears its slot.
-					const arr = runtime.timers.get(routine.id);
-					if (arr) arr[triggerIndex] = null;
-				}, delay) as unknown as ReturnType<typeof setInterval>;
+				at = parseOneOff(trigger.fireAtIso, trigger.timezone);
 			} catch (err) {
-				console.error(`[pi-routines] one-off arm failed for '${routine.name}':`, err);
+				// Past timestamp (e.g. a one-off that fired in a previous
+				// session before we wrote `fired: true`, or one whose
+				// schedule was set in the past to begin with). Mark it
+				// spent so we don't log on every reload, and persist.
+				const msg = err instanceof Error ? err.message : String(err);
+				if (msg.includes("in the past")) {
+					trigger.fired = true;
+					void saveStore(runtime.store);
+				} else {
+					console.warn(`[pi-routines] one-off arm failed for '${routine.name}':`, err);
+				}
 				return null;
 			}
+			const delay = Math.max(0, at.getTime() - Date.now());
+			return setTimeout(() => {
+				onFire();
+				// Mark spent and persist so /reload doesn't re-arm.
+				trigger.fired = true;
+				void saveStore(runtime.store);
+				const arr = runtime.timers.get(routine.id);
+				if (arr) arr[triggerIndex] = null;
+			}, delay) as unknown as ReturnType<typeof setInterval>;
 		}
 		case "hook":
 			return null; // armed by hooks.ts
@@ -273,6 +289,19 @@ export async function drainQueue(
 		if (!id) return;
 		const routine = runtime.store.routines[id];
 		if (!routine) continue; // deleted while queued — skip silently
+
+		// Belt-and-braces pause gate. The primary gate is at enqueue
+		// (`enqueueTriggerFire`) and at hook pick (`pickHookRoutines`), but a
+		// routine may be paused AFTER it was queued: e.g. user pauses while
+		// another routine is mid-turn. Manual fires (origin.kind === "manual")
+		// are the explicit override path and ignore the flag.
+		if (routine.paused) {
+			const origin = runtime.triggerOrigin.get(id);
+			if (origin?.kind !== "manual") {
+				runtime.triggerOrigin.delete(id);
+				continue;
+			}
+		}
 
 		runtime.lastUiCtx = ctx;
 		await fireRoutine(routine, runtime, runtime.store, pi, ctx);

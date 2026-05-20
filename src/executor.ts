@@ -180,15 +180,22 @@ export async function fireRoutine(
 		// without interrupting). See Discoveries.
 		pi.sendUserMessage(prompt, { deliverAs: "followUp" });
 
+		// Bump runsToday only for AUTOMATIC fires. Manual fires bypass the
+		// daily cap on the pre-check (see above); they must not count toward
+		// it post-fire either, or repeated /routine-run-now would silently
+		// burn the day's budget for scheduled fires. The counter still rolls
+		// over at local midnight via the runsTodayDate compare.
 		const today = new Date().toLocaleDateString("en-CA");
 		const sameDay = tickState.runsTodayDate === today;
+		const carried = sameDay ? (tickState.runsToday ?? 0) : 0;
+		const nextRunsToday = origin.kind === "manual" ? carried : carried + 1;
 		const updated: RoutineTickState = {
 			tickCount: tickState.tickCount + 1,
 			lastFiredAt: Date.now(),
 			lastFiredDateLocal: today,
 			userState: tickState.userState ?? {},
 			runs: tickState.runs ?? [],
-			runsToday: (sameDay ? (tickState.runsToday ?? 0) : 0) + 1,
+			runsToday: nextRunsToday,
 			runsTodayDate: today,
 		};
 		store.tickState[routine.id] = updated;
