@@ -12,6 +12,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import { isToolOnPath } from "../path-probe.ts";
 import { createRoutine, type TriggerInput } from "../tools/_mutate.ts";
 import type { RoutineRuntimeState, RoutineTemplate } from "../types.ts";
 import { TEMPLATES_DIR } from "../types.ts";
@@ -134,12 +135,13 @@ export function registerRoutineInstallCommand(
 				return;
 			}
 
-			// requiredTools: warn (do not block) on missing.
+			// requiredTools: warn (do not block) on missing. Cross-platform
+			// PATH walk — avoids hard-coding `which` (Unix) vs `where` (Win).
 			const warnings: string[] = [];
 			for (const tool of template.requiredTools ?? []) {
 				try {
-					const res = await pi.exec("which", [tool]);
-					if (res.code !== 0) {
+					const found = await isToolOnPath(tool);
+					if (!found) {
 						warnings.push(`tool '${tool}' not found on PATH; routine may fail until installed`);
 					}
 				} catch {
