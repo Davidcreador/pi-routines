@@ -18,10 +18,20 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { nanoid } from "nanoid";
+import { describeTrigger, describeTriggers } from "../format.ts";
 import { parseInterval } from "../parser.ts";
 import { scheduleRoutine, unscheduleRoutine } from "../scheduler.ts";
 import { saveStore } from "../store.ts";
 import type { HookEvent, Routine, RoutineRuntimeState, RoutineTrigger } from "../types.ts";
+import {
+	listRoutineNames as listRoutineNamesFromStore,
+	resolveRoutine as resolveFromStore,
+} from "./_resolve.ts";
+
+// Re-export so existing callers that imported these from `_mutate.ts` keep
+// working without code churn. The single implementations live in `_resolve.ts`
+// and `format.ts` respectively.
+export { describeTrigger, describeTriggers };
 
 const NAME_RE = /^[a-z0-9-]{1,32}$/;
 const MAX_ROUTINES = 20;
@@ -60,46 +70,25 @@ export interface DeleteRoutineSuccess {
 
 export type DeleteRoutineResult = DeleteRoutineSuccess | MutateError;
 
-/** Compact human description of a resolved trigger (post-parse). */
-export function describeTrigger(t: RoutineTrigger): string {
-	if (t.kind === "pulse") return `every ${t.intervalHuman}`;
-	if (t.kind === "cron") return `cron '${t.expr}'${t.timezone ? ` ${t.timezone}` : ""}`;
-	if (t.kind === "oneoff") return `at ${t.fireAtIso}`;
-	if (t.kind === "github") return `on github ${t.repo} ${t.event}`;
-	if (t.kind === "api") return t.allowArgs ? "api (allowArgs)" : "api";
-	return t.once ? `on ${t.event} (${t.once})` : `on ${t.event}`;
-}
-
-/** Compact human description for a routine's full trigger set. */
-export function describeTriggers(triggers: RoutineTrigger[]): string {
-	return triggers.map(describeTrigger).join(" + ");
-}
-
 /**
- * Resolve a routine by `id` first (exact), then by case-insensitive name.
- * Used by tools, commands, and the cron-export command. Returns `undefined`
- * when nothing matches (callers craft their own error messages).
+ * Resolve a routine by id-or-name (runtime-keyed convenience for callers
+ * that hold a runtime rather than a bare store). Returns `undefined` when
+ * nothing matches.
+ *
+ * Thin wrapper over the canonical {@link resolveFromStore}; kept for
+ * source compatibility with the v0.1 call sites.
  */
 export function resolveRoutine(
 	idOrName: string,
 	runtime: RoutineRuntimeState,
 ): Routine | undefined {
 	if (!idOrName) return undefined;
-	const byId = runtime.store.routines[idOrName];
-	if (byId) return byId;
-	const lower = idOrName.toLowerCase();
-	for (const r of Object.values(runtime.store.routines)) {
-		if (r.name.toLowerCase() === lower) return r;
-	}
-	return undefined;
+	return resolveFromStore(runtime.store, idOrName) ?? undefined;
 }
 
 /** Comma-separated list of current routine names (for "not found" errors). */
 export function listRoutineNames(runtime: RoutineRuntimeState): string {
-	const names = Object.values(runtime.store.routines)
-		.map((r) => r.name)
-		.sort();
-	return names.length === 0 ? "(none)" : names.join(", ");
+	return listRoutineNamesFromStore(runtime.store);
 }
 
 /**

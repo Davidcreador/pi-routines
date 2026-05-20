@@ -1,18 +1,29 @@
 /**
- * @file _resolve.ts — shared id/name resolution helper for tools.
+ * @file _resolve.ts — single source of truth for id/name resolution.
  *
- * Used by routine-delete and routine-set-state to look up a routine by
- * `id` first (exact match) and then by `name` (case-insensitive). Returns
- * null if neither matches.
+ * Every caller (LLM tools, slash commands, HTTP server) goes through these
+ * helpers. Resolution prefers exact id match, then case-insensitive name.
+ *
+ * Two overloads are accepted:
+ *   - `resolveRoutine(store, id?, name?)` — explicit split (tool args)
+ *   - `resolveRoutine(store, idOrName)`   — single arg, tries id then name
+ *     (slash commands and the HTTP server use this shape)
  */
 
 import type { Routine, RoutineStore } from "../types.ts";
 
 /**
  * Resolve a routine by id first (exact), then by case-insensitive name.
- * Returns `null` if neither identifier matches.
+ *
+ * Accepts either a single `idOrName` (tries both interpretations) or the
+ * explicit `(id?, name?)` shape used by typed tool args. Returns `null`
+ * when nothing matches; callers craft their own error messages.
  */
-export function resolveRoutine(store: RoutineStore, id?: string, name?: string): Routine | null {
+export function resolveRoutine(store: RoutineStore, idOrName: string): Routine | null;
+export function resolveRoutine(store: RoutineStore, id?: string, name?: string): Routine | null;
+export function resolveRoutine(store: RoutineStore, a?: string, b?: string): Routine | null {
+	const id = a;
+	const name = b ?? a;
 	if (id) {
 		const byId = store.routines[id];
 		if (byId) return byId;

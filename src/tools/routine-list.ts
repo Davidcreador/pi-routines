@@ -9,7 +9,8 @@
 import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import type { Routine, RoutineRuntimeState, RoutineTrigger } from "../types.ts";
+import { describeTriggers, relativeTime } from "../format.ts";
+import type { Routine, RoutineRuntimeState } from "../types.ts";
 
 interface RoutineRow {
 	id: string;
@@ -23,36 +24,6 @@ interface RoutineRow {
 
 interface Details {
 	routines: RoutineRow[];
-}
-
-function describeTrigger(t: RoutineTrigger): string {
-	if (t.kind === "pulse") return `every ${t.intervalHuman}`;
-	if (t.kind === "cron") return `cron '${t.expr}'${t.timezone ? ` ${t.timezone}` : ""}`;
-	if (t.kind === "oneoff") return `at ${t.fireAtIso}`;
-	if (t.kind === "github") return `on github ${t.repo} ${t.event}`;
-	if (t.kind === "api") return t.allowArgs ? "api (allowArgs)" : "api";
-	return t.once ? `on ${t.event} (${t.once})` : `on ${t.event}`;
-}
-
-function describeTriggers(triggers: RoutineTrigger[]): string {
-	return triggers.map(describeTrigger).join(" + ");
-}
-
-/** Convert epoch millis to a coarse "N units ago" / "never" string. */
-function relativeTime(ms: number, now: number = Date.now()): string {
-	if (!ms || ms <= 0) return "never";
-	const diff = now - ms;
-	if (diff < 0) return "in the future";
-	const sec = Math.round(diff / 1000);
-	if (sec < 60) return `${sec}s ago`;
-	const min = Math.round(sec / 60);
-	if (min < 60) return `${min} minute${min === 1 ? "" : "s"} ago`;
-	const hr = Math.round(min / 60);
-	if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
-	const day = Math.round(hr / 24);
-	if (day === 1) return "yesterday";
-	if (day < 30) return `${day} days ago`;
-	return new Date(ms).toISOString().slice(0, 10);
 }
 
 /**
