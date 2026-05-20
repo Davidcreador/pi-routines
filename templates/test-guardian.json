@@ -1,0 +1,7 @@
+{
+  "name": "test-guardian",
+  "description": "Re-run failing tests every 5m during TDD",
+  "trigger": { "kind": "pulse", "interval": "5m" },
+  "prompt": "TDD check. Run the test suite (try `pnpm test`, `npm test`, `bun test`, `pytest`, `cargo test` — use whichever matches the project).\n\nPrevious state: {state}\n\nReport only if test results changed from last tick. If tests went from failing to passing: celebrate briefly. If a new failure appeared: report the new error message. If same failures as before: output [~].\n\nUpdate state with current pass/fail counts via RoutineSetState.",
+  "quiet": true
+}

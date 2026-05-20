@@ -1,0 +1,8 @@
+{
+  "name": "pomodoro",
+  "description": "25-minute focus check-in",
+  "trigger": { "kind": "pulse", "interval": "25m" },
+  "prompt": "Pomodoro check-in (tick #{tickCount}).\nLook at our conversation so far this session. In 2-3 sentences:\n1. Did I make progress toward what I was trying to do?\n2. Am I in a rabbit hole that's blocking forward progress?\n3. Suggested focus for the next 25 minutes.\nBe direct. No fluff.",
+  "quiet": false,
+  "maxTicks": 8
+}

@@ -4,7 +4,7 @@
     "src/types.ts": {
       "latest": {
         "commit": "c7adef07",
-        "timestamp": "2026-05-20T00:21:50.383Z",
+        "timestamp": "2026-05-20T00:21:18.724Z",
         "mi": 46.7,
         "cognitive": 1,
         "nesting": 0,
@@ -25,7 +25,7 @@
         },
         {
           "commit": "c7adef07",
-          "timestamp": "2026-05-20T00:21:50.383Z",
+          "timestamp": "2026-05-20T00:21:18.724Z",
           "mi": 46.7,
           "cognitive": 1,
           "nesting": 0,
@@ -35,32 +35,7 @@
         }
       ],
       "trend": "stable"
-    },
-    "src/suppressor.ts": {
-      "latest": {
-        "commit": "c7adef07",
-        "timestamp": "2026-05-20T00:24:41.747Z",
-        "mi": 46.4,
-        "cognitive": 32,
-        "nesting": 3,
-        "lines": 84,
-        "maxCyclomatic": 14,
-        "entropy": 5.46
-      },
-      "history": [
-        {
-          "commit": "c7adef07",
-          "timestamp": "2026-05-20T00:24:41.747Z",
-          "mi": 46.4,
-          "cognitive": 32,
-          "nesting": 3,
-          "lines": 84,
-          "maxCyclomatic": 14,
-          "entropy": 5.46
-        }
-      ],
-      "trend": "stable"
     }
   },
-  "capturedAt": "2026-05-20T00:24:46.748Z"
+  "capturedAt": "2026-05-20T00:21:23.725Z"
 }

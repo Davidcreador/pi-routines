@@ -1,0 +1,8 @@
+{
+  "name": "pr-babysitter",
+  "description": "Watch open PRs for new activity every 15m",
+  "trigger": { "kind": "pulse", "interval": "15m" },
+  "prompt": "Check open PRs for new activity. Run `gh pr list --author @me --state open --json number,title,url 2>/dev/null` to find your PRs. For each, check for new review comments or CI status changes since last check.\n\nPrevious state: {state}\n\nIf new blocking comments or CI failures: report them clearly.\nIf nothing changed: output [~].\nUpdate state with current PR statuses via RoutineSetState.",
+  "quiet": true,
+  "requiredTools": ["gh"]
+}
