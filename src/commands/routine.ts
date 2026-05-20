@@ -8,13 +8,10 @@
  * `_mutate.createRoutine`.
  */
 
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { parseInterval } from "../parser.ts";
-import type { RoutineRuntimeState } from "../types.ts";
 import { createRoutine } from "../tools/_mutate.ts";
+import type { RoutineRuntimeState } from "../types.ts";
 
 const SYSTEM_MSG_TYPE = "pi-routines/system";
 
@@ -39,9 +36,7 @@ function autoName(prompt: string, runtime: RoutineRuntimeState): string {
 		.replace(/^-+|-+$/g, "")
 		.slice(0, 32);
 	if (base.length === 0) base = "routine";
-	const existing = new Set(
-		Object.values(runtime.store.routines).map((r) => r.name),
-	);
+	const existing = new Set(Object.values(runtime.store.routines).map((r) => r.name));
 	if (!existing.has(base)) return base;
 	for (let n = 2; n < 1000; n++) {
 		const suffix = `-${n}`;
@@ -56,9 +51,7 @@ function autoName(prompt: string, runtime: RoutineRuntimeState): string {
  * `interval` is the joined prefix that parses, and `rest` is everything
  * after. `null` if no leading token-set parses.
  */
-function splitIntervalAndPrompt(
-	args: string,
-): { interval: string; rest: string } | null {
+function splitIntervalAndPrompt(args: string): { interval: string; rest: string } | null {
 	const tokens = args.trim().split(/\s+/);
 	for (let n = 1; n <= tokens.length; n++) {
 		const candidate = tokens.slice(0, n).join(" ");

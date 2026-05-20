@@ -6,10 +6,7 @@
  * `renderResult` formats a column-aligned table for the TUI.
  */
 
-import type {
-	AgentToolResult,
-	ExtensionAPI,
-} from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import type { Routine, RoutineRuntimeState, RoutineTrigger } from "../types.ts";
@@ -57,10 +54,7 @@ function relativeTime(ms: number, now: number = Date.now()): string {
  * Useful for self-introspection (e.g. before deleting one) and for
  * answering user questions like "what routines do I have running?".
  */
-export function registerRoutineListTool(
-	pi: ExtensionAPI,
-	runtime: RoutineRuntimeState,
-): void {
+export function registerRoutineListTool(pi: ExtensionAPI, runtime: RoutineRuntimeState): void {
 	pi.registerTool({
 		name: "RoutineList",
 		label: "Routine: List",
@@ -70,8 +64,8 @@ export function registerRoutineListTool(
 		parameters: Type.Object({}),
 
 		async execute(): Promise<AgentToolResult<Details>> {
-			const sorted: Routine[] = Object.values(runtime.store.routines).sort(
-				(a, b) => a.name.localeCompare(b.name),
+			const sorted: Routine[] = Object.values(runtime.store.routines).sort((a, b) =>
+				a.name.localeCompare(b.name),
 			);
 			const rows: RoutineRow[] = sorted.map((r) => {
 				const tick = runtime.store.tickState[r.id];
@@ -118,17 +112,12 @@ export function registerRoutineListTool(
 				r.triggerDescription,
 				String(r.tickCount),
 				r.lastFiredAt,
-				[
-					r.quiet ? "quiet" : "",
-					r.maxTicks !== undefined ? `max=${r.maxTicks}` : "",
-				]
+				[r.quiet ? "quiet" : "", r.maxTicks !== undefined ? `max=${r.maxTicks}` : ""]
 					.filter(Boolean)
 					.join(" "),
 			]);
 			const all = [headers, ...data];
-			const widths = headers.map((_, col) =>
-				Math.max(...all.map((row) => row[col]?.length ?? 0)),
-			);
+			const widths = headers.map((_, col) => Math.max(...all.map((row) => row[col]?.length ?? 0)));
 			const fmt = (row: string[]) =>
 				row
 					.map((cell, i) => (cell ?? "").padEnd(widths[i] ?? 0))

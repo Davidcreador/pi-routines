@@ -20,15 +20,12 @@
  *   - Tool / command argument validation (see `tools/*` and `commands/*`).
  */
 
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { registerRoutineCommand } from "../src/commands/routine.ts";
 import { registerRoutineExportCronCommand } from "../src/commands/routine-export-cron.ts";
 import { registerRoutineInstallCommand } from "../src/commands/routine-install.ts";
 import { registerRoutineOnCommand } from "../src/commands/routine-on.ts";
 import { registerRoutineStopCommand } from "../src/commands/routine-stop.ts";
-import { registerRoutineCommand } from "../src/commands/routine.ts";
 import { registerRoutinesCommand } from "../src/commands/routines.ts";
 import { registerHooks, registerInputTracker } from "../src/hooks.ts";
 import { stopScheduler } from "../src/scheduler.ts";

@@ -52,9 +52,7 @@ export function parseInterval(input: string): ParsedInterval {
 	if (s.startsWith("every ")) s = s.slice("every ".length).trim();
 
 	if (s.length === 0) {
-		throw new Error(
-			`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`,
-		);
+		throw new Error(`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`);
 	}
 
 	// Bare number (no unit) → friendly message.
@@ -66,16 +64,12 @@ export function parseInterval(input: string): ParsedInterval {
 	// composed of them (plus whitespace).
 	const matches = Array.from(s.matchAll(SEGMENT_RE));
 	if (matches.length === 0) {
-		throw new Error(
-			`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`,
-		);
+		throw new Error(`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`);
 	}
 	const consumed = matches.reduce((n, m) => n + m[0].length, 0);
 	const residual = s.replace(/\s+/g, "").replace(SEGMENT_RE, "").trim();
 	if (residual.length > 0 || consumed === 0) {
-		throw new Error(
-			`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`,
-		);
+		throw new Error(`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`);
 	}
 
 	let ms = 0;
@@ -84,22 +78,16 @@ export function parseInterval(input: string): ParsedInterval {
 		const unit = m[2];
 		const factor = UNIT_MS[unit];
 		if (factor === undefined) {
-			throw new Error(
-				`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`,
-			);
+			throw new Error(`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`);
 		}
 		if (!Number.isFinite(n) || n < 0) {
-			throw new Error(
-				`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`,
-			);
+			throw new Error(`Could not parse interval: '${original}'. Examples: 5m, 1h, 90s`);
 		}
 		ms += n * factor;
 	}
 
 	if (ms > MAX_MS) {
-		throw new Error(
-			"Intervals over 24h should use /routine-export-cron instead",
-		);
+		throw new Error("Intervals over 24h should use /routine-export-cron instead");
 	}
 	if (ms < MIN_MS) {
 		throw new Error("Interval must be at least 30 seconds");
@@ -154,9 +142,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 			}
 		} catch (err) {
 			if (expected !== "throws") {
-				console.error(
-					`FAIL ${input}: unexpected throw ${(err as Error).message}`,
-				);
+				console.error(`FAIL ${input}: unexpected throw ${(err as Error).message}`);
 				fail++;
 			}
 		}

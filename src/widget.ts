@@ -26,10 +26,7 @@ const NAME_MAX_LEN = 12;
  * `ctx.ui.setStatus`. No-op when `ctx.hasUI` is false. When no routines are
  * configured, clears the status entry.
  */
-export function updateWidget(
-	runtime: RoutineRuntimeState,
-	ctx: ExtensionContext,
-): void {
+export function updateWidget(runtime: RoutineRuntimeState, ctx: ExtensionContext): void {
 	if (!ctx.hasUI) return;
 	const routines = Object.values(runtime.store.routines);
 	if (routines.length === 0) {
@@ -63,9 +60,7 @@ export function startWidgetRefresh(
 	getCtx: () => ExtensionContext | null,
 	intervalMs: number = DEFAULT_REFRESH_MS,
 ): () => void {
-	const hasPulse = Object.values(runtime.store.routines).some(
-		(r) => r.trigger.kind === "pulse",
-	);
+	const hasPulse = Object.values(runtime.store.routines).some((r) => r.trigger.kind === "pulse");
 	if (!hasPulse) return () => {};
 
 	const handle = setInterval(() => {
@@ -84,15 +79,10 @@ export function startWidgetRefresh(
 
 // ─── internals ───────────────────────────────────────────────────────────────
 
-function formatStatus(
-	routines: Routine[],
-	runtime: RoutineRuntimeState,
-): string {
+function formatStatus(routines: Routine[], runtime: RoutineRuntimeState): string {
 	const head = routines.slice(0, MAX_DISPLAYED);
 	const rest = routines.length - head.length;
-	const entries = head.map(
-		(r) => `${truncateName(r.name)}(${tag(r, runtime)})`,
-	);
+	const entries = head.map((r) => `${truncateName(r.name)}(${tag(r, runtime)})`);
 	const tail = rest > 0 ? `  +${rest} more` : "";
 	return `↺ ${routines.length} active  ${entries.join(" · ")}${tail}`;
 }
@@ -110,10 +100,7 @@ function tag(routine: Routine, runtime: RoutineRuntimeState): string {
 	return `${minutes}m`;
 }
 
-function minutesUntilNext(
-	routine: Routine,
-	lastFiredAt: number | undefined,
-): number {
+function minutesUntilNext(routine: Routine, lastFiredAt: number | undefined): number {
 	if (routine.trigger.kind !== "pulse") return 0;
 	const interval = routine.trigger.intervalMs;
 	const anchor = lastFiredAt ?? routine.createdAt;

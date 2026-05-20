@@ -22,11 +22,7 @@
  * This module owns NO event subscriptions and performs no I/O.
  */
 
-import type {
-	Routine,
-	RoutineRuntimeState,
-	RoutineTickState,
-} from "./types.ts";
+import type { Routine, RoutineRuntimeState, RoutineTickState } from "./types.ts";
 
 /**
  * Mark the runtime as actively executing a routine turn.
@@ -35,10 +31,7 @@ import type {
  * sequential by construction, so this should never fire in normal operation;
  * a throw indicates a bug in the executor or a missed release.
  */
-export function acquireRoutineTurn(
-	runtime: RoutineRuntimeState,
-	routineName: string,
-): void {
+export function acquireRoutineTurn(runtime: RoutineRuntimeState, routineName: string): void {
 	if (runtime.isRoutineTurnActive) {
 		throw new Error(
 			`acquireRoutineTurn: turn already active for '${runtime.activeRoutineName ?? "?"}'`,
@@ -80,10 +73,7 @@ export function isRoutineTurnActive(runtime: RoutineRuntimeState): boolean {
  * @param tickState The persisted tick state for this routine, or `undefined`
  *                  if it has never fired (or was reset on session_start).
  */
-export function shouldFireHook(
-	routine: Routine,
-	tickState: RoutineTickState | undefined,
-): boolean {
+export function shouldFireHook(routine: Routine, tickState: RoutineTickState | undefined): boolean {
 	if (routine.trigger.kind !== "hook") return false;
 	const once = routine.trigger.once;
 	if (!once) return true;

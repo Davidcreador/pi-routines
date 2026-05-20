@@ -26,10 +26,7 @@
  * (subject to once-semantics) we may fire ONE hook routine.
  */
 
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { fireRoutine } from "./executor.ts";
 import * as guard from "./guard.ts";
 import { drainQueue, scheduleRoutine, stopScheduler } from "./scheduler.ts";
@@ -79,11 +76,7 @@ export function registerHooks(
 		const isReload = event.reason === "reload";
 		for (const routine of pickHookRoutines(runtime, "session_start")) {
 			// On reload, suppress per_session hooks — the session continues.
-			if (
-				isReload &&
-				routine.trigger.kind === "hook" &&
-				routine.trigger.once === "per_session"
-			) {
+			if (isReload && routine.trigger.kind === "hook" && routine.trigger.once === "per_session") {
 				continue;
 			}
 			if (!guard.shouldFireHook(routine, runtime.store.tickState[routine.id])) {
@@ -92,10 +85,7 @@ export function registerHooks(
 			try {
 				await fireRoutine(routine, runtime, runtime.store, pi, ctx);
 			} catch (err) {
-				console.error(
-					`[pi-routines] session_start hook '${routine.name}' failed:`,
-					err,
-				);
+				console.error(`[pi-routines] session_start hook '${routine.name}' failed:`, err);
 			}
 		}
 
@@ -124,18 +114,13 @@ export function registerHooks(
 		// runaway feedback loops.
 		if (!wasRoutineTurn && ctx.hasUI) {
 			for (const routine of pickHookRoutines(runtime, "agent_end")) {
-				if (
-					!guard.shouldFireHook(routine, runtime.store.tickState[routine.id])
-				) {
+				if (!guard.shouldFireHook(routine, runtime.store.tickState[routine.id])) {
 					continue;
 				}
 				try {
 					await fireRoutine(routine, runtime, runtime.store, pi, ctx);
 				} catch (err) {
-					console.error(
-						`[pi-routines] agent_end hook '${routine.name}' failed:`,
-						err,
-					);
+					console.error(`[pi-routines] agent_end hook '${routine.name}' failed:`, err);
 				}
 				break; // hard cap: one per turn
 			}
@@ -156,23 +141,16 @@ export function registerHooks(
 		// torn down to be re-loaded immediately — the new instance will run
 		// `session_start` for us; firing shutdown hooks would double-trigger.
 		const shouldFireShutdown =
-			event.reason === "quit" &&
-			!guard.isRoutineTurnActive(runtime) &&
-			ctx !== null;
+			event.reason === "quit" && !guard.isRoutineTurnActive(runtime) && ctx !== null;
 		if (shouldFireShutdown) {
 			for (const routine of pickHookRoutines(runtime, "session_shutdown")) {
-				if (
-					!guard.shouldFireHook(routine, runtime.store.tickState[routine.id])
-				) {
+				if (!guard.shouldFireHook(routine, runtime.store.tickState[routine.id])) {
 					continue;
 				}
 				try {
 					await fireRoutine(routine, runtime, runtime.store, pi, ctx);
 				} catch (err) {
-					console.error(
-						`[pi-routines] session_shutdown hook '${routine.name}' failed:`,
-						err,
-					);
+					console.error(`[pi-routines] session_shutdown hook '${routine.name}' failed:`, err);
 				}
 			}
 		}
@@ -199,10 +177,7 @@ export function registerHooks(
  *
  * Returns nothing (lets the input continue unchanged).
  */
-export function registerInputTracker(
-	pi: ExtensionAPI,
-	runtime: RoutineRuntimeState,
-): void {
+export function registerInputTracker(pi: ExtensionAPI, runtime: RoutineRuntimeState): void {
 	pi.on("input", (event) => {
 		if (event.source === "extension" && guard.isRoutineTurnActive(runtime)) {
 			console.error(

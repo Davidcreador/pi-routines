@@ -18,27 +18,15 @@
  * firing, the guard is released here so the routine survives.
  */
 
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import * as guard from "./guard.ts";
-import { saveStore } from "./store.ts";
 import { unscheduleRoutine } from "./scheduler.ts";
-import type {
-	Routine,
-	RoutineRuntimeState,
-	RoutineStore,
-	RoutineTickState,
-} from "./types.ts";
+import { saveStore } from "./store.ts";
+import type { Routine, RoutineRuntimeState, RoutineStore, RoutineTickState } from "./types.ts";
 import { MAX_USER_STATE_BYTES } from "./types.ts";
 
 /** Build the full prompt string that will be injected into the session. */
-export function buildPrompt(
-	routine: Routine,
-	tickState: RoutineTickState,
-	cwd: string,
-): string {
+export function buildPrompt(routine: Routine, tickState: RoutineTickState, cwd: string): string {
 	const now = new Date();
 	const time = now.toLocaleTimeString();
 	const date = now.toLocaleDateString();
@@ -104,10 +92,7 @@ export async function fireRoutine(
 
 	// maxTicks gate — applied BEFORE acquiring the guard so an exhausted
 	// routine cleans itself up without occupying a turn.
-	if (
-		typeof routine.maxTicks === "number" &&
-		tickState.tickCount >= routine.maxTicks
-	) {
+	if (typeof routine.maxTicks === "number" && tickState.tickCount >= routine.maxTicks) {
 		unscheduleRoutine(routine.id, runtime);
 		delete store.routines[routine.id];
 		delete store.tickState[routine.id];
@@ -136,9 +121,6 @@ export async function fireRoutine(
 		await saveStore(store);
 	} catch (err) {
 		guard.releaseRoutineTurn(runtime);
-		console.error(
-			`[pi-routines] fireRoutine '${routine.name}' (${routine.id}) failed:`,
-			err,
-		);
+		console.error(`[pi-routines] fireRoutine '${routine.name}' (${routine.id}) failed:`, err);
 	}
 }

@@ -12,11 +12,7 @@ import type { Routine, RoutineStore } from "../types.ts";
  * Resolve a routine by id first (exact), then by case-insensitive name.
  * Returns `null` if neither identifier matches.
  */
-export function resolveRoutine(
-	store: RoutineStore,
-	id?: string,
-	name?: string,
-): Routine | null {
+export function resolveRoutine(store: RoutineStore, id?: string, name?: string): Routine | null {
 	if (id) {
 		const byId = store.routines[id];
 		if (byId) return byId;

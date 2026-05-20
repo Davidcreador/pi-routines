@@ -16,20 +16,12 @@
  * `{ error }` / success payloads in their respective UIs.
  */
 
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { nanoid } from "nanoid";
 import { parseInterval } from "../parser.ts";
 import { scheduleRoutine, unscheduleRoutine } from "../scheduler.ts";
 import { saveStore } from "../store.ts";
-import type {
-	HookEvent,
-	Routine,
-	RoutineRuntimeState,
-	RoutineTrigger,
-} from "../types.ts";
+import type { HookEvent, Routine, RoutineRuntimeState, RoutineTrigger } from "../types.ts";
 
 const NAME_RE = /^[a-z0-9-]{1,32}$/;
 const MAX_ROUTINES = 20;
@@ -141,19 +133,11 @@ export async function createRoutine(
 		};
 	}
 
-	const existing = Object.values(runtime.store.routines).find(
-		(r) => r.name === name,
-	);
+	const existing = Object.values(runtime.store.routines).find((r) => r.name === name);
 
-	if (
-		resolvedTrigger.kind === "hook" &&
-		resolvedTrigger.event === "agent_end"
-	) {
+	if (resolvedTrigger.kind === "hook" && resolvedTrigger.event === "agent_end") {
 		const conflict = Object.values(runtime.store.routines).find(
-			(r) =>
-				r.trigger.kind === "hook" &&
-				r.trigger.event === "agent_end" &&
-				r.id !== existing?.id,
+			(r) => r.trigger.kind === "hook" && r.trigger.event === "agent_end" && r.id !== existing?.id,
 		);
 		if (conflict) {
 			return {
@@ -177,9 +161,7 @@ export async function createRoutine(
 			prompt,
 			trigger: resolvedTrigger,
 			quiet: quiet ?? existing.quiet ?? false,
-			...(maxTicks !== undefined
-				? { maxTicks }
-				: { maxTicks: existing.maxTicks }),
+			...(maxTicks !== undefined ? { maxTicks } : { maxTicks: existing.maxTicks }),
 		};
 		const old = existing.trigger;
 		const intervalChanged =

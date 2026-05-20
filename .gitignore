@@ -1,0 +1,6 @@
+node_modules/
+.pi/
+.pi-lens/
+.worktrees/
+*.log
+.DS_Store

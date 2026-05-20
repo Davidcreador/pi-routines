@@ -170,5 +170,4 @@ export const STATE_FILE: string = process.env.HOME
 	: "/tmp/pi-routines-state.json";
 
 /** Directory containing bundled routine templates. */
-export const TEMPLATES_DIR: string = new URL("../templates", import.meta.url)
-	.pathname;
+export const TEMPLATES_DIR: string = new URL("../templates", import.meta.url).pathname;

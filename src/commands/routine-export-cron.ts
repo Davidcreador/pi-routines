@@ -14,8 +14,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
-import type { RoutineRuntimeState } from "../types.ts";
 import { resolveRoutine } from "../tools/_mutate.ts";
+import type { RoutineRuntimeState } from "../types.ts";
 
 const SYSTEM_MSG_TYPE = "pi-routines/system";
 const MAX_CRON_MS = 60 * 60 * 1000;
@@ -39,11 +39,7 @@ function cronSchedule(intervalMs: number): string {
 	return `*/${minutes} * * * *`;
 }
 
-function buildPlist(
-	label: string,
-	intervalSeconds: number,
-	promptFile: string,
-): string {
+function buildPlist(label: string, intervalSeconds: number, promptFile: string): string {
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -71,8 +67,7 @@ export function registerRoutineExportCronCommand(
 	runtime: RoutineRuntimeState,
 ): void {
 	pi.registerCommand("routine-export-cron", {
-		description:
-			"Export a routine as cron + launchd + prompt files: /routine-export-cron <name>",
+		description: "Export a routine as cron + launchd + prompt files: /routine-export-cron <name>",
 		getArgumentCompletions(prefix: string): AutocompleteItem[] {
 			const lower = (prefix ?? "").toLowerCase();
 			return Object.values(runtime.store.routines)
@@ -89,10 +84,7 @@ export function registerRoutineExportCronCommand(
 			}
 			const routine = resolveRoutine(target, runtime);
 			if (!routine) {
-				send(
-					pi,
-					`No routine matched '${target}'. Use /routines to list, or check the name.`,
-				);
+				send(pi, `No routine matched '${target}'. Use /routines to list, or check the name.`);
 				return;
 			}
 			if (routine.trigger.kind === "hook") {
@@ -117,10 +109,7 @@ export function registerRoutineExportCronCommand(
 			if (!NAME_RE.test(routine.name)) {
 				// Defensive: routine names already pass NAME_RE on create, but make
 				// the path-safety check explicit at the filesystem boundary.
-				send(
-					pi,
-					`Routine name '${routine.name}' is unsafe for filesystem export.`,
-				);
+				send(pi, `Routine name '${routine.name}' is unsafe for filesystem export.`);
 				return;
 			}
 

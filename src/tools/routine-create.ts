@@ -12,14 +12,13 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { Type, type Static } from "typebox";
+import { type Static, Type } from "typebox";
 import type { RoutineRuntimeState } from "../types.ts";
 import { createRoutine } from "./_mutate.ts";
 
 const ParamsSchema = Type.Object({
 	name: Type.String({
-		description:
-			"Short identifier, lowercase letters/digits/hyphens, max 32 chars.",
+		description: "Short identifier, lowercase letters/digits/hyphens, max 32 chars.",
 	}),
 	prompt: Type.String({
 		description:
@@ -39,15 +38,12 @@ const ParamsSchema = Type.Object({
 				Type.Literal("agent_end"),
 				Type.Literal("session_shutdown"),
 			]),
-			once: Type.Optional(
-				Type.Union([Type.Literal("daily"), Type.Literal("per_session")]),
-			),
+			once: Type.Optional(Type.Union([Type.Literal("daily"), Type.Literal("per_session")])),
 		}),
 	]),
 	quiet: Type.Optional(
 		Type.Boolean({
-			description:
-				"Suppress [~] responses from chat (show only in footer). Default: false.",
+			description: "Suppress [~] responses from chat (show only in footer). Default: false.",
 		}),
 	),
 	maxTicks: Type.Optional(
@@ -96,19 +92,14 @@ export function registerRoutineCreateTool(
 			"Call with an existing name to update the routine in place.",
 		parameters: ParamsSchema,
 
-		async execute(
-			_id,
-			params: Params,
-		): Promise<AgentToolResult<Details | null>> {
+		async execute(_id, params: Params): Promise<AgentToolResult<Details | null>> {
 			const result = await createRoutine(
 				{
 					name: params.name,
 					prompt: params.prompt,
 					trigger: params.trigger,
 					...(params.quiet !== undefined ? { quiet: params.quiet } : {}),
-					...(params.maxTicks !== undefined
-						? { maxTicks: params.maxTicks }
-						: {}),
+					...(params.maxTicks !== undefined ? { maxTicks: params.maxTicks } : {}),
 				},
 				runtime,
 				pi,

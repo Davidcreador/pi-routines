@@ -17,10 +17,7 @@
  * timer (the runtime is being torn down anyway).
  */
 
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { fireRoutine } from "./executor.ts";
 import * as guard from "./guard.ts";
 import type { Routine, RoutineRuntimeState } from "./types.ts";
@@ -102,15 +99,10 @@ export function scheduleRoutine(
 				const h = runtime.timers.get(routine.id);
 				if (h) clearInterval(h);
 				runtime.timers.delete(routine.id);
-				console.warn(
-					`[pi-routines] scheduler: stale ctx, stopping timer '${routine.name}'`,
-				);
+				console.warn(`[pi-routines] scheduler: stale ctx, stopping timer '${routine.name}'`);
 				return;
 			}
-			console.error(
-				`[pi-routines] scheduler tick '${routine.name}' failed:`,
-				err,
-			);
+			console.error(`[pi-routines] scheduler tick '${routine.name}' failed:`, err);
 		}
 	}, routine.trigger.intervalMs);
 
@@ -118,10 +110,7 @@ export function scheduleRoutine(
 }
 
 /** Clear the interval for a single routine. Safe to call if none exists. */
-export function unscheduleRoutine(
-	routineId: string,
-	runtime: RoutineRuntimeState,
-): void {
+export function unscheduleRoutine(routineId: string, runtime: RoutineRuntimeState): void {
 	const handle = runtime.timers.get(routineId);
 	if (handle) clearInterval(handle);
 	runtime.timers.delete(routineId);
@@ -142,9 +131,7 @@ export async function drainQueue(
 			ctx = getCtx();
 		} catch (err) {
 			if (isStaleCtxError(err)) {
-				console.warn(
-					`[pi-routines] drainQueue: stale ctx; stopping all timers`,
-				);
+				console.warn(`[pi-routines] drainQueue: stale ctx; stopping all timers`);
 				stopScheduler(runtime);
 				return;
 			}

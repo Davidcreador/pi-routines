@@ -15,8 +15,8 @@
 
 import { promises as fs } from "node:fs";
 import { dirname } from "node:path";
-import { STATE_FILE } from "./types.ts";
 import type { RoutineStore } from "./types.ts";
+import { STATE_FILE } from "./types.ts";
 
 /** Fresh, empty store. */
 export function emptyStore(): RoutineStore {
@@ -40,9 +40,7 @@ export async function loadStore(): Promise<RoutineStore> {
 				tickState: parsed.tickState ?? {},
 			};
 		} catch (err) {
-			console.warn(
-				`[pi-routines] state.json corrupt, starting fresh: ${(err as Error).message}`,
-			);
+			console.warn(`[pi-routines] state.json corrupt, starting fresh: ${(err as Error).message}`);
 			return emptyStore();
 		}
 	} catch (err) {
@@ -80,9 +78,7 @@ export async function saveStore(store: RoutineStore): Promise<void> {
 		try {
 			await fs.copyFile(STATE_FILE, bak);
 		} catch (err) {
-			console.warn(
-				`[pi-routines] could not write .bak: ${(err as Error).message}`,
-			);
+			console.warn(`[pi-routines] could not write .bak: ${(err as Error).message}`);
 		}
 	} catch (err) {
 		console.warn(

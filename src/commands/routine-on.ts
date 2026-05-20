@@ -7,12 +7,9 @@
  * agent_end uniqueness error from `_mutate.createRoutine` verbatim.
  */
 
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
-import type { HookEvent, RoutineRuntimeState } from "../types.ts";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createRoutine } from "../tools/_mutate.ts";
+import type { HookEvent, RoutineRuntimeState } from "../types.ts";
 
 const SYSTEM_MSG_TYPE = "pi-routines/system";
 
@@ -42,9 +39,7 @@ function autoName(prompt: string, runtime: RoutineRuntimeState): string {
 		.replace(/^-+|-+$/g, "")
 		.slice(0, 32);
 	if (base.length === 0) base = "hook";
-	const existing = new Set(
-		Object.values(runtime.store.routines).map((r) => r.name),
-	);
+	const existing = new Set(Object.values(runtime.store.routines).map((r) => r.name));
 	if (!existing.has(base)) return base;
 	for (let n = 2; n < 1000; n++) {
 		const suffix = `-${n}`;
@@ -107,10 +102,7 @@ export function registerRoutineOnCommand(
 				send(pi, `Error: ${result.error}`);
 				return;
 			}
-			send(
-				pi,
-				`Created hook routine '${result.name}' — fires ${result.triggerDescription}.`,
-			);
+			send(pi, `Created hook routine '${result.name}' — fires ${result.triggerDescription}.`);
 		},
 	});
 }

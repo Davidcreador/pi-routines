@@ -6,12 +6,9 @@
  * when the lookup fails so the LLM can self-correct.
  */
 
-import type {
-	AgentToolResult,
-	ExtensionAPI,
-} from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { Type, type Static } from "typebox";
+import { type Static, Type } from "typebox";
 import type { RoutineRuntimeState } from "../types.ts";
 import { deleteRoutine } from "./_mutate.ts";
 
@@ -41,10 +38,7 @@ function errorResult(message: string): AgentToolResult<Details | null> {
  * request, when a routine's job is done (e.g. deploy-watch saw a final
  * state), or when `maxTicks` should be enforced from inside the prompt.
  */
-export function registerRoutineDeleteTool(
-	pi: ExtensionAPI,
-	runtime: RoutineRuntimeState,
-): void {
+export function registerRoutineDeleteTool(pi: ExtensionAPI, runtime: RoutineRuntimeState): void {
 	pi.registerTool({
 		name: "RoutineDelete",
 		label: "Routine: Delete",
@@ -54,10 +48,7 @@ export function registerRoutineDeleteTool(
 			"one of id or name.",
 		parameters: ParamsSchema,
 
-		async execute(
-			_id,
-			params: Params,
-		): Promise<AgentToolResult<Details | null>> {
+		async execute(_id, params: Params): Promise<AgentToolResult<Details | null>> {
 			const { id, name } = params;
 			if (!id && !name) {
 				return errorResult("Provide either id or name.");
@@ -65,9 +56,7 @@ export function registerRoutineDeleteTool(
 			const result = await deleteRoutine(id ?? name ?? "", runtime);
 			if ("error" in result) return errorResult(result.error);
 			return {
-				content: [
-					{ type: "text", text: `Deleted routine '${result.deletedName}'.` },
-				],
+				content: [{ type: "text", text: `Deleted routine '${result.deletedName}'.` }],
 				details: {
 					deletedId: result.deletedId,
 					deletedName: result.deletedName,
@@ -76,11 +65,7 @@ export function registerRoutineDeleteTool(
 		},
 
 		renderCall(args) {
-			return new Text(
-				`RoutineDelete ${args.name ?? args.id ?? "(unspecified)"}`,
-				0,
-				0,
-			);
+			return new Text(`RoutineDelete ${args.name ?? args.id ?? "(unspecified)"}`, 0, 0);
 		},
 
 		renderResult(result) {

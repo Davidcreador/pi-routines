@@ -10,18 +10,11 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type {
-	ExtensionAPI,
-	ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
-import type {
-	HookEvent,
-	RoutineRuntimeState,
-	RoutineTemplate,
-} from "../types.ts";
-import { TEMPLATES_DIR } from "../types.ts";
 import { createRoutine } from "../tools/_mutate.ts";
+import type { HookEvent, RoutineRuntimeState, RoutineTemplate } from "../types.ts";
+import { TEMPLATES_DIR } from "../types.ts";
 
 const SYSTEM_MSG_TYPE = "pi-routines/system";
 const NAME_RE = /^[a-z0-9-]+$/;
@@ -52,19 +45,15 @@ function validateTemplate(raw: unknown): RoutineTemplate {
 	if (!raw || typeof raw !== "object") throw new Error("not an object");
 	const t = raw as Record<string, unknown>;
 	if (typeof t.name !== "string" || !t.name) throw new Error("missing 'name'");
-	if (typeof t.description !== "string")
-		throw new Error("missing 'description'");
-	if (typeof t.prompt !== "string" || !t.prompt)
-		throw new Error("missing 'prompt'");
+	if (typeof t.description !== "string") throw new Error("missing 'description'");
+	if (typeof t.prompt !== "string" || !t.prompt) throw new Error("missing 'prompt'");
 	if (typeof t.quiet !== "boolean") throw new Error("missing 'quiet'");
 	const trig = t.trigger as Record<string, unknown> | undefined;
 	if (!trig || typeof trig !== "object") throw new Error("missing 'trigger'");
 	if (trig.kind === "pulse") {
-		if (typeof trig.interval !== "string")
-			throw new Error("pulse trigger missing 'interval'");
+		if (typeof trig.interval !== "string") throw new Error("pulse trigger missing 'interval'");
 	} else if (trig.kind === "hook") {
-		if (typeof trig.event !== "string")
-			throw new Error("hook trigger missing 'event'");
+		if (typeof trig.event !== "string") throw new Error("hook trigger missing 'event'");
 	} else {
 		throw new Error("trigger.kind must be 'pulse' or 'hook'");
 	}
@@ -93,19 +82,13 @@ export function registerRoutineInstallCommand(
 				return;
 			}
 			if (!NAME_RE.test(name)) {
-				send(
-					pi,
-					`Invalid template name '${name}'. Use lowercase letters, digits, hyphens only.`,
-				);
+				send(pi, `Invalid template name '${name}'. Use lowercase letters, digits, hyphens only.`);
 				return;
 			}
 			const file = path.join(TEMPLATES_DIR, `${name}.json`);
 			if (!fs.existsSync(file)) {
 				const available = listTemplateNames().join(", ") || "(none)";
-				send(
-					pi,
-					`Template '${name}' not found in ${TEMPLATES_DIR}. Available: ${available}`,
-				);
+				send(pi, `Template '${name}' not found in ${TEMPLATES_DIR}. Available: ${available}`);
 				return;
 			}
 			let template: RoutineTemplate;
@@ -113,10 +96,7 @@ export function registerRoutineInstallCommand(
 				const raw = JSON.parse(fs.readFileSync(file, "utf8"));
 				template = validateTemplate(raw);
 			} catch (err) {
-				send(
-					pi,
-					`Failed to load template '${name}': ${(err as Error).message}`,
-				);
+				send(pi, `Failed to load template '${name}': ${(err as Error).message}`);
 				return;
 			}
 
@@ -126,9 +106,7 @@ export function registerRoutineInstallCommand(
 				try {
 					const res = await pi.exec("which", [tool]);
 					if (res.code !== 0) {
-						warnings.push(
-							`tool '${tool}' not found on PATH; routine may fail until installed`,
-						);
+						warnings.push(`tool '${tool}' not found on PATH; routine may fail until installed`);
 					}
 				} catch {
 					warnings.push(`could not check for tool '${tool}'`);
@@ -150,9 +128,7 @@ export function registerRoutineInstallCommand(
 					prompt: template.prompt,
 					trigger,
 					quiet: template.quiet,
-					...(template.maxTicks !== undefined
-						? { maxTicks: template.maxTicks }
-						: {}),
+					...(template.maxTicks !== undefined ? { maxTicks: template.maxTicks } : {}),
 				},
 				runtime,
 				pi,
@@ -162,9 +138,7 @@ export function registerRoutineInstallCommand(
 				send(pi, `Error: ${result.error}`);
 				return;
 			}
-			const parts: string[] = [
-				`Installed '${result.name}' — fires ${result.triggerDescription}.`,
-			];
+			const parts: string[] = [`Installed '${result.name}' — fires ${result.triggerDescription}.`];
 			if (result.nextFireIn) parts.push(`Next fire in ~${result.nextFireIn}.`);
 			parts.push("Use `/routines` to inspect.");
 			if (warnings.length > 0) {

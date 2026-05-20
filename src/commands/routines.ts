@@ -31,17 +31,11 @@ function relativeTime(ms: number, now: number = Date.now()): string {
 	return new Date(ms).toISOString().slice(0, 10);
 }
 
-function formatTable(
-	routines: Routine[],
-	runtime: RoutineRuntimeState,
-): string {
+function formatTable(routines: Routine[], runtime: RoutineRuntimeState): string {
 	const headers = ["NAME", "TRIGGER", "TICKS", "LAST", "FLAGS"];
 	const rows = routines.map((r) => {
 		const tick = runtime.store.tickState[r.id];
-		const flags = [
-			r.quiet ? "quiet" : "",
-			r.maxTicks !== undefined ? `max=${r.maxTicks}` : "",
-		]
+		const flags = [r.quiet ? "quiet" : "", r.maxTicks !== undefined ? `max=${r.maxTicks}` : ""]
 			.filter(Boolean)
 			.join(" ");
 		return [
@@ -53,9 +47,7 @@ function formatTable(
 		];
 	});
 	const all = [headers, ...rows];
-	const widths = headers.map((_, col) =>
-		Math.max(...all.map((row) => row[col]?.length ?? 0)),
-	);
+	const widths = headers.map((_, col) => Math.max(...all.map((row) => row[col]?.length ?? 0)));
 	const fmt = (row: string[]) =>
 		row
 			.map((cell, i) => (cell ?? "").padEnd(widths[i] ?? 0))
@@ -70,10 +62,7 @@ function formatTable(
 }
 
 /** Register `/routines` (list all). */
-export function registerRoutinesCommand(
-	pi: ExtensionAPI,
-	runtime: RoutineRuntimeState,
-): void {
+export function registerRoutinesCommand(pi: ExtensionAPI, runtime: RoutineRuntimeState): void {
 	pi.registerCommand("routines", {
 		description: "List all active routines.",
 		async handler(): Promise<void> {

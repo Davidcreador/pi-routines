@@ -6,12 +6,9 @@
  * persist memory across ticks (e.g. "lastStatus", "knownErrors").
  */
 
-import type {
-	AgentToolResult,
-	ExtensionAPI,
-} from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { Type, type Static } from "typebox";
+import { type Static, Type } from "typebox";
 import { saveStore } from "../store.ts";
 import { MAX_USER_STATE_BYTES, type RoutineRuntimeState } from "../types.ts";
 import { listRoutineNames, resolveRoutine } from "./_resolve.ts";
@@ -73,10 +70,7 @@ function deepMerge(
  * across ticks (deploy status, last error, PR cursors, …). State is
  * deep-merged into the existing `userState` and capped at 2KB serialized.
  */
-export function registerRoutineSetStateTool(
-	pi: ExtensionAPI,
-	runtime: RoutineRuntimeState,
-): void {
+export function registerRoutineSetStateTool(pi: ExtensionAPI, runtime: RoutineRuntimeState): void {
 	pi.registerTool({
 		name: "RoutineSetState",
 		label: "Routine: Set State",
@@ -87,10 +81,7 @@ export function registerRoutineSetStateTool(
 			"the routine.",
 		parameters: ParamsSchema,
 
-		async execute(
-			_id,
-			params: Params,
-		): Promise<AgentToolResult<Details | null>> {
+		async execute(_id, params: Params): Promise<AgentToolResult<Details | null>> {
 			const { id, name, state } = params;
 			if (!id && !name) {
 				return errorResult("Provide either id or name.");
@@ -139,11 +130,7 @@ export function registerRoutineSetStateTool(
 		},
 
 		renderCall(args) {
-			return new Text(
-				`RoutineSetState ${args.name ?? args.id ?? "(unspecified)"}`,
-				0,
-				0,
-			);
+			return new Text(`RoutineSetState ${args.name ?? args.id ?? "(unspecified)"}`, 0, 0);
 		},
 
 		renderResult(result) {

@@ -14,7 +14,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { SILENT_TOKEN, type RoutineRuntimeState } from "./types.ts";
+import { type RoutineRuntimeState, SILENT_TOKEN } from "./types.ts";
 
 /**
  * Minimal structural shape of an AgentMessage — sufficient for text extraction.
@@ -50,10 +50,7 @@ export function extractText(message: MessageLike): string {
  * Register the suppression handler on `message_end`. Idempotent only at the
  * call-site level — call once per extension load.
  */
-export function registerSuppressor(
-	pi: ExtensionAPI,
-	runtime: RoutineRuntimeState,
-): void {
+export function registerSuppressor(pi: ExtensionAPI, runtime: RoutineRuntimeState): void {
 	pi.on("message_end", (event) => {
 		if (!runtime.isRoutineTurnActive) return undefined;
 		if (event.message.role !== "assistant") return undefined;
@@ -67,9 +64,7 @@ export function registerSuppressor(
 
 		const name = runtime.activeRoutineName ?? "routine";
 		const routineId = lookupRoutineIdByName(runtime, name);
-		const tickCount = routineId
-			? (runtime.store.tickState[routineId]?.tickCount ?? 0)
-			: 0;
+		const tickCount = routineId ? (runtime.store.tickState[routineId]?.tickCount ?? 0) : 0;
 		const time = new Date().toLocaleTimeString([], {
 			hour: "2-digit",
 			minute: "2-digit",
@@ -89,10 +84,7 @@ export function registerSuppressor(
 	});
 }
 
-function lookupRoutineIdByName(
-	runtime: RoutineRuntimeState,
-	name: string,
-): string | undefined {
+function lookupRoutineIdByName(runtime: RoutineRuntimeState, name: string): string | undefined {
 	for (const [id, routine] of Object.entries(runtime.store.routines)) {
 		if (routine.name === name) return id;
 	}

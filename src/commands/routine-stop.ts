@@ -7,16 +7,13 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
-import type { RoutineRuntimeState } from "../types.ts";
 import { deleteRoutine } from "../tools/_mutate.ts";
+import type { RoutineRuntimeState } from "../types.ts";
 
 const SYSTEM_MSG_TYPE = "pi-routines/system";
 
 /** Register `/routine-stop`. */
-export function registerRoutineStopCommand(
-	pi: ExtensionAPI,
-	runtime: RoutineRuntimeState,
-): void {
+export function registerRoutineStopCommand(pi: ExtensionAPI, runtime: RoutineRuntimeState): void {
 	pi.registerCommand("routine-stop", {
 		description: "Delete a routine by id or name: /routine-stop <id|name>",
 		getArgumentCompletions(prefix: string): AutocompleteItem[] {
@@ -39,9 +36,7 @@ export function registerRoutineStopCommand(
 			}
 			const result = await deleteRoutine(target, runtime);
 			const text =
-				"error" in result
-					? `Error: ${result.error}`
-					: `Deleted routine '${result.deletedName}'.`;
+				"error" in result ? `Error: ${result.error}` : `Deleted routine '${result.deletedName}'.`;
 			pi.sendMessage({
 				customType: SYSTEM_MSG_TYPE,
 				content: text,
