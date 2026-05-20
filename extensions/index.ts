@@ -20,7 +20,10 @@
  *   - Tool / command argument validation (see `tools/*` and `commands/*`).
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { registerRoutineExportCronCommand } from "../src/commands/routine-export-cron.ts";
 import { registerRoutineInstallCommand } from "../src/commands/routine-install.ts";
 import { registerRoutineOnCommand } from "../src/commands/routine-on.ts";

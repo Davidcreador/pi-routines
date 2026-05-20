@@ -27,13 +27,11 @@ survive restarts; in-memory timers restart fresh on each `session_start`.
 
    ```json
    {
-     "extensions": [
-       "/absolute/path/to/pi-routines"
-     ]
+     "extensions": ["/absolute/path/to/pi-routines"]
    }
    ```
 
-   *(Back up `settings.json` first — `cp ~/.pi/agent/settings.json{,.bak}`.)*
+   _(Back up `settings.json` first — `cp ~/.pi/agent/settings.json{,.bak}`.)_
 
 3. Restart pi. The extension loads automatically; `/routine`, `/routines`,
    `/routine-install`, `/routine-on`, `/routine-stop`, and
@@ -63,12 +61,12 @@ The LLM can also create routines on its own via the `RoutineCreate` tool
 
 ## Configuration
 
-| Path                                                  | Purpose                                                          |
-| ----------------------------------------------------- | ---------------------------------------------------------------- |
-| `~/.pi/agent/extensions/routines/state.json`          | Persistent routine + tick state. Atomic write + `.bak` rollback. |
-| `~/.pi/routines/prompts/<name>.md`                    | `routine-export-cron` writes per-routine prompt files here.      |
-| `~/.pi/routines/launchd/<name>.plist`                 | `routine-export-cron` writes optional macOS launchd plists.      |
-| `templates/*.json`                                    | Bundled installable routine templates.                           |
+| Path                                         | Purpose                                                          |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| `~/.pi/agent/extensions/routines/state.json` | Persistent routine + tick state. Atomic write + `.bak` rollback. |
+| `~/.pi/routines/prompts/<name>.md`           | `routine-export-cron` writes per-routine prompt files here.      |
+| `~/.pi/routines/launchd/<name>.plist`        | `routine-export-cron` writes optional macOS launchd plists.      |
+| `templates/*.json`                           | Bundled installable routine templates.                           |
 
 ## Architecture
 

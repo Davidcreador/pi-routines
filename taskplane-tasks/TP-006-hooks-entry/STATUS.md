@@ -11,6 +11,7 @@
 ---
 
 ### Step 0: Preflight
+
 **Status:** ✅ Complete
 
 - [x] TP-001, TP-002, TP-003, TP-005, TP-007 all complete
@@ -19,6 +20,7 @@
 ---
 
 ### Step 1: src/hooks.ts
+
 **Status:** ✅ Complete
 
 - [x] `session_start` handler with daily/per-session guards
@@ -29,6 +31,7 @@
 ---
 
 ### Step 2: extensions/index.ts
+
 **Status:** ✅ Complete
 
 - [x] Hot-reload cleanup via `globalThis` store key
@@ -39,6 +42,7 @@
 ---
 
 ### Step 3: Edge case verification walk-through
+
 **Status:** ✅ Complete
 
 - [x] Hot reload — `globalThis.__piRoutinesCleanup` runs on re-load; `session_shutdown(reason: "reload")` skips hooks + saves store; new `session_start(reason: "reload")` reloads from disk.
@@ -54,6 +58,7 @@
 ---
 
 ### Step 4: Testing & Verification
+
 **Status:** ✅ Complete
 
 - [x] `pnpm typecheck` zero errors
@@ -63,6 +68,7 @@
 ---
 
 ### Step 5: Documentation & Delivery
+
 **Status:** ✅ Complete
 
 - [x] `README.md` at repo root
@@ -73,34 +79,36 @@
 
 ## Reviews
 
-| # | Type | Step | Verdict | File |
-|---|------|------|---------|------|
-| 1 | plan | 1 | APPROVE | .reviews/R001-plan-step1.md |
-| 2 | code | 1 | APPROVE | (reviewer inline) |
-| 3 | code | 2 | APPROVE | (reviewer inline) |
+| #   | Type | Step | Verdict | File                        |
+| --- | ---- | ---- | ------- | --------------------------- |
+| 1   | plan | 1    | APPROVE | .reviews/R001-plan-step1.md |
+| 2   | code | 1    | APPROVE | (reviewer inline)           |
+| 3   | code | 2    | APPROVE | (reviewer inline)           |
 
 ---
 
 ## Discoveries
 
 | Discovery | Disposition | Location |
-|-----------|-------------|----------|
+| --------- | ----------- | -------- |
 
 ---
 
 ## Execution Log
 
-| Timestamp | Action | Outcome |
-|-----------|--------|---------|
-| 2026-05-19 | Task staged | PROMPT.md and STATUS.md created |
-| 2026-05-20 00:55 | Task started | Runtime V2 lane-runner execution |
-| 2026-05-20 00:55 | Step 0 started | Preflight |
+| Timestamp        | Action         | Outcome                          |
+| ---------------- | -------------- | -------------------------------- |
+| 2026-05-19       | Task staged    | PROMPT.md and STATUS.md created  |
+| 2026-05-20 00:55 | Task started   | Runtime V2 lane-runner execution |
+| 2026-05-20 00:55 | Step 0 started | Preflight                        |
+| 2026-05-20 01:06 | Worker iter 1 | done in 652s, tools: 47 |
+| 2026-05-20 01:06 | Task complete | .DONE created |
 
 ---
 
 ## Blockers
 
-*None*
+_None_
 
 ---
 
@@ -108,6 +116,6 @@
 
 - Manual smoke test (install via `~/.pi/agent/settings.json` → `/routine 30s say hi` … → restore backup) deferred: orchestrated lane has no interactive pi binary. README documents the install path. `pnpm typecheck` is the green gate.
 - Tagging `v0.1.0` candidate is symbolic only — PROMPT explicitly says "do not actually publish to npm"; no `git tag` was created (out of scope for a worker commit).
-| 2026-05-20 00:58 | Review R001 | plan Step 1: APPROVE |
-| 2026-05-20 01:04 | Review R002 | code Step 2: APPROVE |
-| 2026-05-20 01:06 | Review R003 | code Step 1: APPROVE |
+  | 2026-05-20 00:58 | Review R001 | plan Step 1: APPROVE |
+  | 2026-05-20 01:04 | Review R002 | code Step 2: APPROVE |
+  | 2026-05-20 01:06 | Review R003 | code Step 1: APPROVE |
