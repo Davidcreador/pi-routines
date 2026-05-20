@@ -3,6 +3,11 @@
   "issues": [
     {
       "type": "file",
+      "name": "src/parser.ts",
+      "file": "src/parser.ts"
+    },
+    {
+      "type": "file",
       "name": "src/types.ts",
       "file": "src/types.ts"
     },
@@ -21,6 +26,11 @@
   ],
   "unusedExports": [],
   "unusedFiles": [
+    {
+      "type": "file",
+      "name": "src/parser.ts",
+      "file": "src/parser.ts"
+    },
     {
       "type": "file",
       "name": "src/types.ts",
@@ -42,5 +52,5 @@
     }
   ],
   "unlistedDeps": [],
-  "summary": "Found 3 issues"
+  "summary": "Found 4 issues"
 }
