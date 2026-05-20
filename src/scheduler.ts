@@ -30,9 +30,7 @@ const STALE_CTX_MARKER = "Extension context no longer active";
 
 /** True if the error/ctx indicates the extension runtime is gone. */
 function isStaleCtxError(err: unknown): boolean {
-	return (
-		err instanceof Error && err.message.includes(STALE_CTX_MARKER)
-	);
+	return err instanceof Error && err.message.includes(STALE_CTX_MARKER);
 }
 
 /** Start intervals for every pulse routine currently in the store. */
@@ -87,9 +85,7 @@ export function scheduleRoutine(
 
 			// Backpressure: drop the OLDEST entry for this routine before push.
 			if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-				const oldestIdx = runtime.queue.findIndex(
-					(id) => id === routine.id,
-				);
+				const oldestIdx = runtime.queue.findIndex((id) => id === routine.id);
 				if (oldestIdx >= 0) {
 					runtime.queue.splice(oldestIdx, 1);
 				} else {

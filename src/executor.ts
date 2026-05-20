@@ -74,8 +74,8 @@ export function buildPrompt(
 
 	const quietFooter = routine.quiet
 		? "\n\n---\n" +
-		  "If nothing changed and there is nothing to report, respond with exactly: [~]\n" +
-		  "Do not explain that you are responding with [~]. Just output [~] and nothing else."
+			"If nothing changed and there is nothing to report, respond with exactly: [~]\n" +
+			"Do not explain that you are responding with [~]. Just output [~] and nothing else."
 		: "";
 
 	return header + truncNote + quietFooter;

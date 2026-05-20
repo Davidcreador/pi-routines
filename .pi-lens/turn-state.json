@@ -1,6 +1,47 @@
 {
-  "files": {},
+  "files": {
+    "taskplane-tasks/TP-002-executor-scheduler/STATUS.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 113
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:33:01.521Z"
+    },
+    "src/executor.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 145
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:33:01.614Z"
+    },
+    "src/scheduler.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 167
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:33:01.670Z"
+    },
+    "taskplane-tasks/CONTEXT.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 94
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:33:01.779Z"
+    }
+  },
   "turnCycles": 0,
   "maxCycles": 3,
-  "lastUpdated": "2026-05-20T00:32:49.224Z"
+  "lastUpdated": "2026-05-20T00:33:01.779Z"
 }
