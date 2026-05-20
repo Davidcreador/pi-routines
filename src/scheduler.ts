@@ -153,6 +153,8 @@ function armTrigger(
 			return null; // armed by hooks.ts
 		case "github":
 			return armGithubPoller(routine, triggerIndex, runtime, pi, getCtx);
+		case "api":
+			return null; // armed by the HTTP server (src/server.ts)
 	}
 }
 

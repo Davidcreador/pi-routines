@@ -54,6 +54,19 @@ export interface OneOffTrigger {
 /** Lifecycle events a hook routine can subscribe to. */
 export type HookEvent = "session_start" | "agent_end" | "session_shutdown";
 
+/**
+ * API trigger: routine can be fired by a `POST /routines/:id/trigger`
+ * request to the local HTTP server (TP-010). No fields are required — the
+ * bearer token is keyed by routine id and stored separately in
+ * `tokens.json`. Set `allowArgs: true` to opt in to receiving the
+ * caller's JSON `args` as the `{apiArgs}` template variable.
+ */
+export interface ApiTrigger {
+	kind: "api";
+	/** When true, accept caller-supplied JSON args and expose as `{apiArgs}`. */
+	allowArgs?: boolean;
+}
+
 /** Hook trigger: fires on a pi lifecycle event. */
 export interface HookTrigger {
 	kind: "hook";
@@ -101,7 +114,8 @@ export type RoutineTrigger =
 	| CronTrigger
 	| OneOffTrigger
 	| HookTrigger
-	| GithubTrigger;
+	| GithubTrigger
+	| ApiTrigger;
 
 // ─── Context modes ───────────────────────────────────────────────────────────
 
@@ -232,6 +246,12 @@ export interface RoutineRuntimeState {
 	 * the suppressor / message_end with the response snippet, finalised by
 	 * the agent_end handler. Non-persisted.
 	 */
+	/**
+	 * Caller-supplied JSON args for in-flight API-triggered fires. Populated
+	 * by `server.ts` before enqueue, consumed by `executor.buildPrompt` via
+	 * the `{apiArgs}` template variable. Non-persisted.
+	 */
+	apiArgs?: Map<string, Record<string, unknown>>;
 	pendingRun: {
 		routineId: string;
 		runId: string;

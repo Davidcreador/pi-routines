@@ -34,7 +34,12 @@ import type {
 import { MAX_RUN_HISTORY, MAX_USER_STATE_BYTES } from "./types.ts";
 
 /** Build the full prompt string that will be injected into the session. */
-export function buildPrompt(routine: Routine, tickState: RoutineTickState, cwd: string): string {
+export function buildPrompt(
+	routine: Routine,
+	tickState: RoutineTickState,
+	cwd: string,
+	apiArgs?: Record<string, unknown> | null,
+): string {
 	const now = new Date();
 	const time = now.toLocaleTimeString();
 	const date = now.toLocaleDateString();
@@ -59,7 +64,8 @@ export function buildPrompt(routine: Routine, tickState: RoutineTickState, cwd: 
 		.replaceAll("{date}", date)
 		.replaceAll("{time}", time)
 		.replaceAll("{state}", userStateJson)
-		.replaceAll("{tickCount}", String(nextTick));
+		.replaceAll("{tickCount}", String(nextTick))
+		.replaceAll("{apiArgs}", apiArgs ? JSON.stringify(apiArgs) : "{}");
 
 	const header =
 		`[↺ routine: ${routine.name} · tick ${nextTick} · ${hhmm}]\n` +
@@ -134,7 +140,9 @@ export async function fireRoutine(
 			status: "success",
 		};
 
-		const prompt = buildPrompt(routine, tickState, ctx.cwd);
+		const apiArgs = runtime.apiArgs?.get(routine.id) ?? null;
+		runtime.apiArgs?.delete(routine.id);
+		const prompt = buildPrompt(routine, tickState, ctx.cwd, apiArgs);
 
 		// NB: PLAN/PROMPT request `deliverAs: "nextTurn"`, but the typed
 		// ExtensionAPI.sendUserMessage signature only allows "steer" | "followUp".

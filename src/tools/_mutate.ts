@@ -66,6 +66,7 @@ export function describeTrigger(t: RoutineTrigger): string {
 	if (t.kind === "cron") return `cron '${t.expr}'${t.timezone ? ` ${t.timezone}` : ""}`;
 	if (t.kind === "oneoff") return `at ${t.fireAtIso}`;
 	if (t.kind === "github") return `on github ${t.repo} ${t.event}`;
+	if (t.kind === "api") return t.allowArgs ? "api (allowArgs)" : "api";
 	return t.once ? `on ${t.event} (${t.once})` : `on ${t.event}`;
 }
 
