@@ -29,6 +29,7 @@ function describeTrigger(t: RoutineTrigger): string {
 	if (t.kind === "pulse") return `every ${t.intervalHuman}`;
 	if (t.kind === "cron") return `cron '${t.expr}'${t.timezone ? ` ${t.timezone}` : ""}`;
 	if (t.kind === "oneoff") return `at ${t.fireAtIso}`;
+	if (t.kind === "github") return `on github ${t.repo} ${t.event}`;
 	return t.once ? `on ${t.event} (${t.once})` : `on ${t.event}`;
 }
 

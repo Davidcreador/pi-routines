@@ -19,6 +19,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { fireRoutine } from "./executor.ts";
+import { armGithubPoller } from "./github-poller.ts";
 import * as guard from "./guard.ts";
 import { nextCronFire, parseOneOff } from "./parser.ts";
 import type { Routine, RoutineRuntimeState, RoutineTrigger } from "./types.ts";
@@ -150,6 +151,8 @@ function armTrigger(
 		}
 		case "hook":
 			return null; // armed by hooks.ts
+		case "github":
+			return armGithubPoller(routine, triggerIndex, runtime, pi, getCtx);
 	}
 }
 
@@ -161,36 +164,7 @@ function onTriggerFire(
 	getCtx: () => ExtensionContext | null,
 ): void {
 	try {
-		if (!runtime.store.routines[routine.id]) {
-			unscheduleRoutine(routine.id, runtime);
-			return;
-		}
-
-		// Multi-trigger collapse: distinct triggers within COLLAPSE_MS share one enqueue.
-		const now = Date.now();
-		const enq = getEnqueueMap(runtime);
-		const last = enq.get(routine.id) ?? 0;
-		if (now - last < MULTI_TRIGGER_COLLAPSE_MS) return;
-		enq.set(routine.id, now);
-
-		// Dedup vs already-queued.
-		if (runtime.queue.includes(routine.id)) return;
-
-		// Backpressure.
-		if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-			const oldestIdx = runtime.queue.indexOf(routine.id);
-			if (oldestIdx >= 0) runtime.queue.splice(oldestIdx, 1);
-			else runtime.queue.shift();
-		}
-
-		// Record trigger origin so fireRoutine can attribute the run record.
-		const trigger = routine.triggers[triggerIndex];
-		if (trigger) {
-			runtime.triggerOrigin.set(routine.id, { index: triggerIndex, kind: trigger.kind });
-		}
-
-		runtime.queue.push(routine.id);
-		void drainQueue(runtime, pi, getCtx);
+		enqueueTriggerFire(routine, triggerIndex, runtime, pi, getCtx);
 	} catch (err) {
 		if (isStaleCtxError(err)) {
 			unscheduleRoutine(routine.id, runtime);
@@ -199,6 +173,48 @@ function onTriggerFire(
 		}
 		console.error(`[pi-routines] scheduler tick '${routine.name}' failed:`, err);
 	}
+}
+
+/**
+ * Shared enqueue path. Used by the time-based scheduler and by the GitHub
+ * poller (TP-011). Performs: existence check, multi-trigger collapse,
+ * dedup-vs-queued, backpressure trim, triggerOrigin record, push, drain.
+ *
+ * Throws on stale ctx; callers should treat that as a teardown signal.
+ */
+export function enqueueTriggerFire(
+	routine: Routine,
+	triggerIndex: number,
+	runtime: RoutineRuntimeState,
+	pi: ExtensionAPI,
+	getCtx: () => ExtensionContext | null,
+): void {
+	if (!runtime.store.routines[routine.id]) {
+		unscheduleRoutine(routine.id, runtime);
+		return;
+	}
+
+	const now = Date.now();
+	const enq = getEnqueueMap(runtime);
+	const last = enq.get(routine.id) ?? 0;
+	if (now - last < MULTI_TRIGGER_COLLAPSE_MS) return;
+	enq.set(routine.id, now);
+
+	if (runtime.queue.includes(routine.id)) return;
+
+	if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
+		const oldestIdx = runtime.queue.indexOf(routine.id);
+		if (oldestIdx >= 0) runtime.queue.splice(oldestIdx, 1);
+		else runtime.queue.shift();
+	}
+
+	const trigger = routine.triggers[triggerIndex];
+	if (trigger) {
+		runtime.triggerOrigin.set(routine.id, { index: triggerIndex, kind: trigger.kind });
+	}
+
+	runtime.queue.push(routine.id);
+	void drainQueue(runtime, pi, getCtx);
 }
 
 /** Clear all timers for a single routine. Safe to call if none exist. */
