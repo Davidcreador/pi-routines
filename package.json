@@ -3,6 +3,20 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Pi extension for scheduled and event-driven routines",
+  "keywords": ["pi", "pi-extension", "pi-coding-agent", "routines", "scheduler", "agent", "llm"],
+  "license": "MIT",
+  "author": "David Creador",
+  "homepage": "https://github.com/Davidcreador/pi-routines",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Davidcreador/pi-routines.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Davidcreador/pi-routines/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "pi": {
     "extensions": [
       "./extensions/index.ts"
