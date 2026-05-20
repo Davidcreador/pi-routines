@@ -262,6 +262,8 @@ prompt or any conversational turn):
 | `RoutineCreate`   | Create or update a routine. Accepts pulse / cron / oneoff / hook / api / github triggers (singular or multi-trigger array). |
 | `RoutineList`     | List active routines                                                           |
 | `RoutineDelete`   | Stop and remove a routine (often used from within a routine to self-terminate) |
+| `RoutinePause`    | Pause a routine (e.g. self-suspend after a terminal condition)                 |
+| `RoutineResume`   | Resume a previously paused routine                                             |
 | `RoutineSetState` | Persist arbitrary state between ticks (e.g. "last CI status I reported")       |
 
 See [`skills/routine/SKILL.md`](./skills/routine/SKILL.md) for the full LLM-facing
@@ -346,8 +348,8 @@ pi-routines/
 │   ├── schedule-nl.ts         # /schedule NL → RoutineCreate meta-prompt
 │   ├── format.ts              # describeTrigger, relativeTime — shared formatters
 │   ├── path-probe.ts          # cross-platform `which` replacement
-│   ├── tools/                 # 4 LLM tools + _mutate.ts + _resolve.ts
-│   └── commands/              # 11 slash commands
+│   ├── tools/                 # 6 LLM tools + _mutate.ts + _resolve.ts
+│   └── commands/              # 13 slash commands
 ├── templates/                 # 11 bundled routine templates
 ├── skills/routine/            # LLM-facing skill doc
 └── tests/                     # node:test suites (~170 tests)

@@ -44,6 +44,7 @@ import { registerSuppressor } from "../src/suppressor.ts";
 import { registerRoutineCreateTool } from "../src/tools/routine-create.ts";
 import { registerRoutineDeleteTool } from "../src/tools/routine-delete.ts";
 import { registerRoutineListTool } from "../src/tools/routine-list.ts";
+import { registerRoutinePauseTool, registerRoutineResumeTool } from "../src/tools/routine-pause.ts";
 import { registerRoutineSetStateTool } from "../src/tools/routine-set-state.ts";
 import type { RoutineRuntimeState } from "../src/types.ts";
 import { clearWidget, startWidgetRefresh } from "../src/widget.ts";
@@ -91,6 +92,8 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	registerRoutineListTool(pi, runtime);
 	registerRoutineDeleteTool(pi, runtime);
 	registerRoutineSetStateTool(pi, runtime);
+	registerRoutinePauseTool(pi, runtime);
+	registerRoutineResumeTool(pi, runtime);
 
 	// 2. Slash commands.
 	registerRoutineCommand(pi, runtime, getCtx);

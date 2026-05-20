@@ -28,6 +28,8 @@ commands when the user is driving; use tools when the LLM is reacting.
 | LLM needs to create one in-flight       | `RoutineCreate` tool                        |
 | LLM needs to inspect state              | `RoutineList` tool                          |
 | Routine self-terminates                 | `RoutineDelete` tool (from its prompt)      |
+| Routine self-pauses (terminal condition)| `RoutinePause` tool (from its prompt)       |
+| Routine resumes a sibling               | `RoutineResume` tool                        |
 | Routine remembers across ticks          | `RoutineSetState` tool                      |
 
 ## Choosing a trigger kind

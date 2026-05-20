@@ -14,6 +14,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { enqueueTriggerFire, stopScheduler } from "../src/scheduler.ts";
 import { emptyStore } from "../src/store.ts";
 import { createRoutine, setPaused } from "../src/tools/_mutate.ts";
+import { registerRoutinePauseTool, registerRoutineResumeTool } from "../src/tools/routine-pause.ts";
 import type { RoutineRuntimeState } from "../src/types.ts";
 
 function makeRuntime(): RoutineRuntimeState {
@@ -148,5 +149,98 @@ describe("pause / resume", () => {
 		if (!live) return;
 		enqueueTriggerFire(live, 0, rt, fakePi, getCtx);
 		assert.equal(rt.queue.length, 1);
+	});
+});
+
+// Capture tools registered via pi.registerTool() so we can invoke their
+// execute() functions directly.
+interface CapturedTool {
+	name: string;
+	execute: (id: string, params: unknown) => Promise<unknown>;
+}
+
+function captureRegistrations(): { pi: ExtensionAPI; tools: Map<string, CapturedTool> } {
+	const tools = new Map<string, CapturedTool>();
+	const pi = {
+		registerTool(def: { name: string; execute: CapturedTool["execute"] }) {
+			tools.set(def.name, { name: def.name, execute: def.execute });
+		},
+	} as unknown as ExtensionAPI;
+	return { pi, tools };
+}
+
+describe("RoutinePause / RoutineResume LLM tools", () => {
+	beforeEach(() => {
+		mock.timers.enable({
+			apis: ["setInterval", "setTimeout"],
+			now: Date.parse("2026-06-01T00:00:00Z"),
+		});
+	});
+
+	afterEach(() => {
+		for (const rt of liveRuntimes.splice(0)) {
+			try {
+				stopScheduler(rt);
+			} catch {
+				/* ignore */
+			}
+		}
+		mock.timers.reset();
+	});
+
+	it("RoutinePause flips paused: true through the tool surface", async () => {
+		const rt = makeRuntime();
+		liveRuntimes.push(rt);
+		await createRoutine(
+			{ name: "w", prompt: "x", trigger: { kind: "pulse", interval: "1m" } },
+			rt,
+			fakePi,
+			getCtx,
+		);
+		const cap = captureRegistrations();
+		registerRoutinePauseTool(cap.pi, rt);
+		const tool = cap.tools.get("RoutinePause");
+		assert.ok(tool);
+		if (!tool) return;
+		const result = (await tool.execute("call-1", { name: "w" })) as {
+			details: { paused: boolean; changed: boolean };
+		};
+		assert.equal(result.details.paused, true);
+		assert.equal(result.details.changed, true);
+		assert.equal(Object.values(rt.store.routines)[0]?.paused, true);
+	});
+
+	it("RoutineResume flips paused: false through the tool surface", async () => {
+		const rt = makeRuntime();
+		liveRuntimes.push(rt);
+		await createRoutine(
+			{ name: "w", prompt: "x", trigger: { kind: "pulse", interval: "1m" } },
+			rt,
+			fakePi,
+			getCtx,
+		);
+		await setPaused("w", true, rt);
+		const cap = captureRegistrations();
+		registerRoutineResumeTool(cap.pi, rt);
+		const tool = cap.tools.get("RoutineResume");
+		assert.ok(tool);
+		if (!tool) return;
+		const result = (await tool.execute("call-1", { name: "w" })) as {
+			details: { paused: boolean; changed: boolean };
+		};
+		assert.equal(result.details.paused, false);
+		assert.equal(result.details.changed, true);
+		assert.equal(Object.values(rt.store.routines)[0]?.paused, undefined);
+	});
+
+	it("RoutinePause returns an error when neither id nor name is given", async () => {
+		const rt = makeRuntime();
+		const cap = captureRegistrations();
+		registerRoutinePauseTool(cap.pi, rt);
+		const tool = cap.tools.get("RoutinePause");
+		assert.ok(tool);
+		if (!tool) return;
+		const result = (await tool.execute("call-1", {})) as { details: unknown };
+		assert.equal(result.details, null);
 	});
 });
