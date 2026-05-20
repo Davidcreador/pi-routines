@@ -1,10 +1,10 @@
 # TP-001: Foundation — Status
 
-**Current Step:** Step 1: Package skeleton
+**Current Step:** Step 2: src/types.ts
 **Status:** 🟡 In Progress
 **Last Updated:** 2026-05-20
 **Review Level:** 1
-**Review Counter:** 0
+**Review Counter:** 1
 **Iteration:** 1
 **Size:** M
 
@@ -23,12 +23,12 @@
 ---
 
 ### Step 1: Package skeleton
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Create `package.json` with pi extension config and deps
-- [ ] Create `tsconfig.json` (strict, ESM, bundler resolution)
-- [ ] `pnpm install` succeeds
-- [ ] `pnpm typecheck` passes (no source yet)
+- [x] Create `package.json` with pi extension config and deps
+- [x] Create `tsconfig.json` (strict, ESM, bundler resolution)
+- [x] `pnpm install` succeeds
+- [x] `pnpm typecheck` passes (no source yet)
 
 ---
 
@@ -118,3 +118,4 @@
 ## Notes
 
 *Reserved for execution notes*
+| 2026-05-20 00:11 | Review R001 | plan Step 1: APPROVE |

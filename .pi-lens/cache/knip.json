@@ -1,0 +1,46 @@
+{
+  "success": true,
+  "issues": [
+    {
+      "type": "file",
+      "name": "src/_placeholder.ts",
+      "file": "src/_placeholder.ts"
+    },
+    {
+      "type": "dependency",
+      "name": "typebox",
+      "file": "package.json",
+      "line": 19
+    },
+    {
+      "type": "dependency",
+      "name": "nanoid",
+      "file": "package.json",
+      "line": 20
+    }
+  ],
+  "unusedExports": [],
+  "unusedFiles": [
+    {
+      "type": "file",
+      "name": "src/_placeholder.ts",
+      "file": "src/_placeholder.ts"
+    }
+  ],
+  "unusedDeps": [
+    {
+      "type": "dependency",
+      "name": "typebox",
+      "file": "package.json",
+      "line": 19
+    },
+    {
+      "type": "dependency",
+      "name": "nanoid",
+      "file": "package.json",
+      "line": 20
+    }
+  ],
+  "unlistedDeps": [],
+  "summary": "Found 3 issues"
+}
