@@ -318,13 +318,15 @@ async function tickGithub(
 		return interval;
 	}
 
-	// Stash newest fresh event for any downstream template-substitution.
-	const tickState = runtime.store.tickState[routine.id];
-	if (tickState) {
-		tickState.userState = {
-			...tickState.userState,
-			__githubEvent: fresh[0]?.payload ?? null,
-		};
+	// Stash newest fresh event for downstream template substitution.
+	// We use the transient `runtime.githubEvents` map (peer of
+	// `runtime.apiArgs`) rather than writing into persisted `userState` so
+	// the payload doesn't survive past the next fire and doesn't count
+	// against the 2 KB userState cap.
+	const payload = fresh[0]?.payload;
+	if (payload) {
+		runtime.githubEvents ??= new Map();
+		runtime.githubEvents.set(routine.id, payload);
 	}
 
 	trig.cursor = newestId;

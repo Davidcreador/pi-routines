@@ -39,6 +39,7 @@ export function buildPrompt(
 	tickState: RoutineTickState,
 	cwd: string,
 	apiArgs?: Record<string, unknown> | null,
+	githubEvent?: Record<string, unknown> | null,
 ): string {
 	const now = new Date();
 	const time = now.toLocaleTimeString();
@@ -65,7 +66,8 @@ export function buildPrompt(
 		.replaceAll("{time}", time)
 		.replaceAll("{state}", userStateJson)
 		.replaceAll("{tickCount}", String(nextTick))
-		.replaceAll("{apiArgs}", apiArgs ? JSON.stringify(apiArgs) : "{}");
+		.replaceAll("{apiArgs}", apiArgs ? JSON.stringify(apiArgs) : "{}")
+		.replaceAll("{githubEvent}", githubEvent ? JSON.stringify(githubEvent) : "{}");
 
 	const header =
 		`[↺ routine: ${routine.name} · tick ${nextTick} · ${hhmm}]\n` +
@@ -168,7 +170,9 @@ export async function fireRoutine(
 
 		const apiArgs = runtime.apiArgs?.get(routine.id) ?? null;
 		runtime.apiArgs?.delete(routine.id);
-		const prompt = buildPrompt(routine, tickState, ctx.cwd, apiArgs);
+		const githubEvent = runtime.githubEvents?.get(routine.id) ?? null;
+		runtime.githubEvents?.delete(routine.id);
+		const prompt = buildPrompt(routine, tickState, ctx.cwd, apiArgs, githubEvent);
 
 		// NB: PLAN/PROMPT request `deliverAs: "nextTurn"`, but the typed
 		// ExtensionAPI.sendUserMessage signature only allows "steer" | "followUp".
