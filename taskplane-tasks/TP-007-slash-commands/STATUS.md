@@ -1,34 +1,34 @@
 # TP-007: Slash Commands — Status
 
-**Current Step:** Not Started
-**Status:** 🔵 Ready for Execution
-**Last Updated:** 2026-05-19
+**Current Step:** Step 0: Preflight
+**Status:** 🟡 In Progress
+**Last Updated:** 2026-05-20
 **Review Level:** 1
 **Review Counter:** 0
-**Iteration:** 0
+**Iteration:** 1
 **Size:** M
 
 ---
 
 ### Step 0: Preflight
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] TP-001, TP-002, TP-004, TP-005 all complete
-- [ ] `templates/` directory populated
+- [x] TP-001, TP-002, TP-004, TP-005 all complete (verified: src/{types,parser,store,guard,executor,scheduler}.ts + src/tools/routine-{create,delete,list,set-state}.ts)
+- [x] `templates/` directory populated (7 JSON files)
 
 ---
 
 ### Step 1: Extract `src/tools/_mutate.ts`
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] `createRoutine`, `deleteRoutine`, `resolveRoutine` helpers
-- [ ] Refactor TP-005 tool files to delegate
-- [ ] `pnpm typecheck` passes after refactor
+- [x] `createRoutine`, `deleteRoutine`, `resolveRoutine` helpers
+- [x] Refactor TP-005 tool files to delegate
+- [x] `pnpm typecheck` passes after refactor
 
 ---
 
 ### Step 2: /routine
-**Status:** ⬜ Not Started
+**Status:** 🟨 In Progress
 
 - [ ] Interval parsing across multi-word prefix
 - [ ] Auto-name + collision suffix
@@ -115,6 +115,8 @@
 | Timestamp | Action | Outcome |
 |-----------|--------|---------|
 | 2026-05-19 | Task staged | PROMPT.md and STATUS.md created |
+| 2026-05-20 00:44 | Task started | Runtime V2 lane-runner execution |
+| 2026-05-20 00:44 | Step 0 started | Preflight |
 
 ---
 

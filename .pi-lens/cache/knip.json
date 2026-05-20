@@ -43,6 +43,11 @@
     },
     {
       "type": "file",
+      "name": "src/tools/_mutate.ts",
+      "file": "src/tools/_mutate.ts"
+    },
+    {
+      "type": "file",
       "name": "src/tools/_resolve.ts",
       "file": "src/tools/_resolve.ts"
     },
@@ -123,6 +128,11 @@
     },
     {
       "type": "file",
+      "name": "src/tools/_mutate.ts",
+      "file": "src/tools/_mutate.ts"
+    },
+    {
+      "type": "file",
       "name": "src/tools/_resolve.ts",
       "file": "src/tools/_resolve.ts"
     },
@@ -162,5 +172,5 @@
     }
   ],
   "unlistedDeps": [],
-  "summary": "Found 15 issues"
+  "summary": "Found 16 issues"
 }

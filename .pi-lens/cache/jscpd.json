@@ -1,7 +1,32 @@
 {
   "success": true,
-  "clones": [],
-  "duplicatedLines": 0,
-  "totalLines": 0,
-  "percentage": 0
+  "clones": [
+    {
+      "fileA": "src/tools/routine-delete.ts",
+      "startA": 63,
+      "fileB": "src/tools/routine-set-state.ts",
+      "startB": 94,
+      "lines": 14,
+      "tokens": 0
+    },
+    {
+      "fileA": "src/tools/routine-delete.ts",
+      "startA": 96,
+      "fileB": "src/tools/routine-set-state.ts",
+      "startB": 143,
+      "lines": 12,
+      "tokens": 0
+    },
+    {
+      "fileA": "src/tools/routine-create.ts",
+      "startA": 86,
+      "fileB": "src/tools/routine-list.ts",
+      "startB": 28,
+      "lines": 15,
+      "tokens": 0
+    }
+  ],
+  "duplicatedLines": 38,
+  "totalLines": 1775,
+  "percentage": 2.14
 }
