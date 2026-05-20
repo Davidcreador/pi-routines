@@ -80,12 +80,12 @@ Wave 5: TP-006 (hooks + entry point wiring)
 
 ## Discoveries Log
 
-| Discovery | Disposition | Location |
-|-----------|-------------|----------|
-| `pi.sendUserMessage` exists with `deliverAs: "steer" \| "followUp"` | Used by executor | extensions/index.ts |
-| `message_end` event allows full message replacement via return value | Used by suppressor | suppressor.ts |
-| `InputEvent.source === "extension"` identifies extension-injected input | Used by guard | guard.ts |
-| `ctx.ui.setStatus(key, text)` adds non-intrusive footer entries | Used by widget | widget.ts |
-| TP-001 foundation done — no deviations from PLAN.md Phases 1–4/6 | n/a | src/{types,parser,store,guard}.ts |
-| `STATE_FILE` resolved at module load using `process.env.HOME` with `/tmp` fallback (kept the literal constant rather than a getter, matching PLAN snippet) | TP-001 | src/types.ts |
-| Parser uses `String.matchAll` segment scan; rejects residuals to catch garbage like `"5m banana"` | TP-001 | src/parser.ts |
+| Discovery                                                                                                                                                  | Disposition        | Location                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | --------------------------------- |
+| `pi.sendUserMessage` exists with `deliverAs: "steer" \| "followUp"`                                                                                        | Used by executor   | extensions/index.ts               |
+| `message_end` event allows full message replacement via return value                                                                                       | Used by suppressor | suppressor.ts                     |
+| `InputEvent.source === "extension"` identifies extension-injected input                                                                                    | Used by guard      | guard.ts                          |
+| `ctx.ui.setStatus(key, text)` adds non-intrusive footer entries                                                                                            | Used by widget     | widget.ts                         |
+| TP-001 foundation done — no deviations from PLAN.md Phases 1–4/6                                                                                           | n/a                | src/{types,parser,store,guard}.ts |
+| `STATE_FILE` resolved at module load using `process.env.HOME` with `/tmp` fallback (kept the literal constant rather than a getter, matching PLAN snippet) | TP-001             | src/types.ts                      |
+| Parser uses `String.matchAll` segment scan; rejects residuals to catch garbage like `"5m banana"`                                                          | TP-001             | src/parser.ts                     |

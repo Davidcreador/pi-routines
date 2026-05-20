@@ -20,7 +20,7 @@ import type { RoutineStore } from "./types.ts";
 
 /** Fresh, empty store. */
 export function emptyStore(): RoutineStore {
-  return { routines: {}, tickState: {} };
+	return { routines: {}, tickState: {} };
 }
 
 /**
@@ -31,29 +31,29 @@ export function emptyStore(): RoutineStore {
  * on corruption recovery so the operator can investigate.
  */
 export async function loadStore(): Promise<RoutineStore> {
-  try {
-    const raw = await fs.readFile(STATE_FILE, "utf8");
-    try {
-      const parsed = JSON.parse(raw) as Partial<RoutineStore>;
-      return {
-        routines: parsed.routines ?? {},
-        tickState: parsed.tickState ?? {},
-      };
-    } catch (err) {
-      console.warn(
-        `[pi-routines] state.json corrupt, starting fresh: ${(err as Error).message}`,
-      );
-      return emptyStore();
-    }
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT") {
-      console.warn(
-        `[pi-routines] could not read state.json (${code ?? "unknown"}): ${(err as Error).message}`,
-      );
-    }
-    return emptyStore();
-  }
+	try {
+		const raw = await fs.readFile(STATE_FILE, "utf8");
+		try {
+			const parsed = JSON.parse(raw) as Partial<RoutineStore>;
+			return {
+				routines: parsed.routines ?? {},
+				tickState: parsed.tickState ?? {},
+			};
+		} catch (err) {
+			console.warn(
+				`[pi-routines] state.json corrupt, starting fresh: ${(err as Error).message}`,
+			);
+			return emptyStore();
+		}
+	} catch (err) {
+		const code = (err as NodeJS.ErrnoException).code;
+		if (code !== "ENOENT") {
+			console.warn(
+				`[pi-routines] could not read state.json (${code ?? "unknown"}): ${(err as Error).message}`,
+			);
+		}
+		return emptyStore();
+	}
 }
 
 /**
@@ -69,30 +69,30 @@ export async function loadStore(): Promise<RoutineStore> {
  * in-memory state remains the source of truth.
  */
 export async function saveStore(store: RoutineStore): Promise<void> {
-  const data = JSON.stringify(store, null, 2);
-  const tmp = `${STATE_FILE}.tmp`;
-  const bak = `${STATE_FILE}.bak`;
+	const data = JSON.stringify(store, null, 2);
+	const tmp = `${STATE_FILE}.tmp`;
+	const bak = `${STATE_FILE}.bak`;
 
-  try {
-    await fs.mkdir(dirname(STATE_FILE), { recursive: true });
-    await fs.writeFile(tmp, data, "utf8");
-    await fs.rename(tmp, STATE_FILE);
-    try {
-      await fs.copyFile(STATE_FILE, bak);
-    } catch (err) {
-      console.warn(
-        `[pi-routines] could not write .bak: ${(err as Error).message}`,
-      );
-    }
-  } catch (err) {
-    console.warn(
-      `[pi-routines] saveStore failed (${(err as NodeJS.ErrnoException).code ?? "unknown"}): ${(err as Error).message}`,
-    );
-    // Best-effort cleanup of stale tmp file.
-    try {
-      await fs.unlink(tmp);
-    } catch {
-      /* ignore */
-    }
-  }
+	try {
+		await fs.mkdir(dirname(STATE_FILE), { recursive: true });
+		await fs.writeFile(tmp, data, "utf8");
+		await fs.rename(tmp, STATE_FILE);
+		try {
+			await fs.copyFile(STATE_FILE, bak);
+		} catch (err) {
+			console.warn(
+				`[pi-routines] could not write .bak: ${(err as Error).message}`,
+			);
+		}
+	} catch (err) {
+		console.warn(
+			`[pi-routines] saveStore failed (${(err as NodeJS.ErrnoException).code ?? "unknown"}): ${(err as Error).message}`,
+		);
+		// Best-effort cleanup of stale tmp file.
+		try {
+			await fs.unlink(tmp);
+		} catch {
+			/* ignore */
+		}
+	}
 }

@@ -14,6 +14,7 @@
 ---
 
 ### Step 0: Preflight
+
 **Status:** ✅ Complete
 
 - [x] PLAN.md exists at repo root
@@ -23,6 +24,7 @@
 ---
 
 ### Step 1: Package skeleton
+
 **Status:** ✅ Complete
 
 - [x] Create `package.json` with pi extension config and deps
@@ -33,6 +35,7 @@
 ---
 
 ### Step 2: src/types.ts
+
 **Status:** ✅ Complete
 
 - [x] Define all shared types from PLAN.md Phase 1
@@ -42,6 +45,7 @@
 ---
 
 ### Step 3: src/parser.ts
+
 **Status:** ✅ Complete
 
 - [x] Implement `parseInterval` supporting all formats from PLAN.md Phase 3
@@ -51,6 +55,7 @@
 ---
 
 ### Step 4: src/store.ts
+
 **Status:** ✅ Complete
 
 - [x] Implement `loadStore` (fault-tolerant, never throws)
@@ -60,6 +65,7 @@
 ---
 
 ### Step 5: src/guard.ts
+
 **Status:** ✅ Complete
 
 - [x] Implement `acquireRoutineTurn` / `releaseRoutineTurn` / `isRoutineTurnActive`
@@ -69,6 +75,7 @@
 ---
 
 ### Step 6: Testing & Verification
+
 **Status:** ✅ Complete
 
 - [x] `pnpm install` succeeds
@@ -78,6 +85,7 @@
 ---
 
 ### Step 7: Documentation & Delivery
+
 **Status:** ✅ Complete
 
 - [x] Discoveries logged in `taskplane-tasks/CONTEXT.md`
@@ -87,37 +95,39 @@
 
 ## Reviews
 
-| # | Type | Step | Verdict | File |
-|---|------|------|---------|------|
+| #   | Type | Step | Verdict | File |
+| --- | ---- | ---- | ------- | ---- |
 
 ---
 
 ## Discoveries
 
 | Discovery | Disposition | Location |
-|-----------|-------------|----------|
+| --------- | ----------- | -------- |
 
 ---
 
 ## Execution Log
 
-| Timestamp | Action | Outcome |
-|-----------|--------|---------|
-| 2026-05-19 | Task staged | PROMPT.md and STATUS.md created |
-| 2026-05-20 00:10 | Task started | Runtime V2 lane-runner execution |
-| 2026-05-20 00:10 | Step 0 started | Preflight |
+| Timestamp        | Action         | Outcome                          |
+| ---------------- | -------------- | -------------------------------- |
+| 2026-05-19       | Task staged    | PROMPT.md and STATUS.md created  |
+| 2026-05-20 00:10 | Task started   | Runtime V2 lane-runner execution |
+| 2026-05-20 00:10 | Step 0 started | Preflight                        |
+| 2026-05-20 00:20 | Worker iter 1 | done in 599s, tools: 43 |
+| 2026-05-20 00:20 | Task complete | .DONE created |
 
 ---
 
 ## Blockers
 
-*None*
+_None_
 
 ---
 
 ## Notes
 
-*Reserved for execution notes*
+_Reserved for execution notes_
 | 2026-05-20 00:11 | Review R001 | plan Step 1: APPROVE |
 | 2026-05-20 00:13 | Review R002 | plan Step 2: APPROVE |
 | 2026-05-20 00:15 | Review R003 | plan Step 3: APPROVE |

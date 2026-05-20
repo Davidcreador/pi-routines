@@ -22,7 +22,11 @@
  * This module owns NO event subscriptions and performs no I/O.
  */
 
-import type { Routine, RoutineRuntimeState, RoutineTickState } from "./types.ts";
+import type {
+	Routine,
+	RoutineRuntimeState,
+	RoutineTickState,
+} from "./types.ts";
 
 /**
  * Mark the runtime as actively executing a routine turn.
@@ -32,16 +36,16 @@ import type { Routine, RoutineRuntimeState, RoutineTickState } from "./types.ts"
  * a throw indicates a bug in the executor or a missed release.
  */
 export function acquireRoutineTurn(
-  runtime: RoutineRuntimeState,
-  routineName: string,
+	runtime: RoutineRuntimeState,
+	routineName: string,
 ): void {
-  if (runtime.isRoutineTurnActive) {
-    throw new Error(
-      `acquireRoutineTurn: turn already active for '${runtime.activeRoutineName ?? "?"}'`,
-    );
-  }
-  runtime.isRoutineTurnActive = true;
-  runtime.activeRoutineName = routineName;
+	if (runtime.isRoutineTurnActive) {
+		throw new Error(
+			`acquireRoutineTurn: turn already active for '${runtime.activeRoutineName ?? "?"}'`,
+		);
+	}
+	runtime.isRoutineTurnActive = true;
+	runtime.activeRoutineName = routineName;
 }
 
 /**
@@ -49,13 +53,13 @@ export function acquireRoutineTurn(
  * a `finally` block even if the turn was never acquired.
  */
 export function releaseRoutineTurn(runtime: RoutineRuntimeState): void {
-  runtime.isRoutineTurnActive = false;
-  runtime.activeRoutineName = null;
+	runtime.isRoutineTurnActive = false;
+	runtime.activeRoutineName = null;
 }
 
 /** True if a routine turn is currently in flight. */
 export function isRoutineTurnActive(runtime: RoutineRuntimeState): boolean {
-  return runtime.isRoutineTurnActive;
+	return runtime.isRoutineTurnActive;
 }
 
 /**
@@ -77,20 +81,20 @@ export function isRoutineTurnActive(runtime: RoutineRuntimeState): boolean {
  *                  if it has never fired (or was reset on session_start).
  */
 export function shouldFireHook(
-  routine: Routine,
-  tickState: RoutineTickState | undefined,
+	routine: Routine,
+	tickState: RoutineTickState | undefined,
 ): boolean {
-  if (routine.trigger.kind !== "hook") return false;
-  const once = routine.trigger.once;
-  if (!once) return true;
-  if (!tickState) return true;
+	if (routine.trigger.kind !== "hook") return false;
+	const once = routine.trigger.once;
+	if (!once) return true;
+	if (!tickState) return true;
 
-  if (once === "per_session") {
-    return tickState.tickCount === 0;
-  }
-  if (once === "daily") {
-    const today = new Date().toLocaleDateString("en-CA");
-    return tickState.lastFiredDateLocal !== today;
-  }
-  return true;
+	if (once === "per_session") {
+		return tickState.tickCount === 0;
+	}
+	if (once === "daily") {
+		const today = new Date().toLocaleDateString("en-CA");
+		return tickState.lastFiredDateLocal !== today;
+	}
+	return true;
 }
