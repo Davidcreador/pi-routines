@@ -111,10 +111,13 @@ function tag(routine: Routine, runtime: RoutineRuntimeState): string {
 	const primary = routine.triggers[0];
 	const glyph = lastRunGlyph(runtime, routine.id);
 	const suffix = glyph ? ` ${glyph}` : "";
+	if (routine.paused) return `paused${suffix}`;
 	if (!primary) return `-${suffix}`;
 	if (primary.kind === "hook") return `${primary.event}${suffix}`;
 	if (primary.kind === "cron") return `cron${suffix}`;
 	if (primary.kind === "oneoff") return `1x${suffix}`;
+	if (primary.kind === "api") return `api${suffix}`;
+	if (primary.kind === "github") return `gh${suffix}`;
 	const tickState = runtime.store.tickState[routine.id];
 	if (routine.quiet) {
 		return `q·${tickState?.tickCount ?? 0}${suffix}`;

@@ -39,6 +39,7 @@ export function buildPrompt(
 	tickState: RoutineTickState,
 	cwd: string,
 	apiArgs?: Record<string, unknown> | null,
+	githubEvent?: Record<string, unknown> | null,
 ): string {
 	const now = new Date();
 	const time = now.toLocaleTimeString();
@@ -65,7 +66,8 @@ export function buildPrompt(
 		.replaceAll("{time}", time)
 		.replaceAll("{state}", userStateJson)
 		.replaceAll("{tickCount}", String(nextTick))
-		.replaceAll("{apiArgs}", apiArgs ? JSON.stringify(apiArgs) : "{}");
+		.replaceAll("{apiArgs}", apiArgs ? JSON.stringify(apiArgs) : "{}")
+		.replaceAll("{githubEvent}", githubEvent ? JSON.stringify(githubEvent) : "{}");
 
 	const header =
 		`[↺ routine: ${routine.name} · tick ${nextTick} · ${hhmm}]\n` +
@@ -84,10 +86,10 @@ export function buildPrompt(
 }
 
 /**
- * Fire a single routine: gate on maxTicks, build prompt, acquire guard, send
- * message, update tickState (write-through). On exception, release guard and
- * log — the routine survives. The guard is released by `hooks.ts` on the
- * subsequent `agent_end` in the happy path.
+ * Fire a single routine: gate on maxTicks + maxRunsPerDay, build prompt,
+ * acquire guard, send message, update tickState (write-through). On
+ * exception, release guard and log — the routine survives. The guard is
+ * released by `hooks.ts` on the subsequent `agent_end` in the happy path.
  */
 export async function fireRoutine(
 	routine: Routine,
@@ -124,6 +126,32 @@ export async function fireRoutine(
 
 	const startedAt = Date.now();
 
+	// maxRunsPerDay soft cap — applied BEFORE acquiring the guard so capped
+	// fires consume zero provider tokens. The counter rolls over to 0 at
+	// local midnight (compared via the `en-CA` locale's ISO date format).
+	// Manual fires (/routine-run-now) bypass this cap, matching pause
+	// semantics; the user explicitly asked for an extra run.
+	if (typeof routine.maxRunsPerDay === "number" && origin.kind !== "manual") {
+		const today = new Date().toLocaleDateString("en-CA");
+		const sameDay = tickState.runsTodayDate === today;
+		const usedToday = sameDay ? (tickState.runsToday ?? 0) : 0;
+		if (usedToday >= routine.maxRunsPerDay) {
+			recordRun(runtime, store, {
+				id: nanoid(),
+				routineId: routine.id,
+				startedAt,
+				endedAt: startedAt,
+				durationMs: 0,
+				status: "skipped",
+				triggerIndex: origin.index,
+				triggerKind: origin.kind,
+				snippet: `Daily cap reached (${usedToday}/${routine.maxRunsPerDay})`,
+				skipReason: "daily cap reached",
+			});
+			return;
+		}
+	}
+
 	try {
 		guard.acquireRoutineTurn(runtime, routine.name);
 
@@ -142,7 +170,9 @@ export async function fireRoutine(
 
 		const apiArgs = runtime.apiArgs?.get(routine.id) ?? null;
 		runtime.apiArgs?.delete(routine.id);
-		const prompt = buildPrompt(routine, tickState, ctx.cwd, apiArgs);
+		const githubEvent = runtime.githubEvents?.get(routine.id) ?? null;
+		runtime.githubEvents?.delete(routine.id);
+		const prompt = buildPrompt(routine, tickState, ctx.cwd, apiArgs, githubEvent);
 
 		// NB: PLAN/PROMPT request `deliverAs: "nextTurn"`, but the typed
 		// ExtensionAPI.sendUserMessage signature only allows "steer" | "followUp".
@@ -150,12 +180,16 @@ export async function fireRoutine(
 		// without interrupting). See Discoveries.
 		pi.sendUserMessage(prompt, { deliverAs: "followUp" });
 
+		const today = new Date().toLocaleDateString("en-CA");
+		const sameDay = tickState.runsTodayDate === today;
 		const updated: RoutineTickState = {
 			tickCount: tickState.tickCount + 1,
 			lastFiredAt: Date.now(),
-			lastFiredDateLocal: new Date().toLocaleDateString("en-CA"),
+			lastFiredDateLocal: today,
 			userState: tickState.userState ?? {},
 			runs: tickState.runs ?? [],
+			runsToday: (sameDay ? (tickState.runsToday ?? 0) : 0) + 1,
+			runsTodayDate: today,
 		};
 		store.tickState[routine.id] = updated;
 		await saveStore(store);

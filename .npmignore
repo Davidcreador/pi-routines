@@ -4,6 +4,7 @@
 .pi-lens/
 .worktrees/
 tests/
+taskplane-tasks/
 biome.json
 .gitignore
 .github/

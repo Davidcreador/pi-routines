@@ -12,8 +12,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
-import { createRoutine } from "../tools/_mutate.ts";
-import type { HookEvent, RoutineRuntimeState, RoutineTemplate } from "../types.ts";
+import { isToolOnPath } from "../path-probe.ts";
+import { createRoutine, type TriggerInput } from "../tools/_mutate.ts";
+import type { RoutineRuntimeState, RoutineTemplate } from "../types.ts";
 import { TEMPLATES_DIR } from "../types.ts";
 
 const SYSTEM_MSG_TYPE = "pi-routines/system";
@@ -40,7 +41,15 @@ function listTemplateNames(): string[] {
 	}
 }
 
-/** Minimal shape check; throws on missing required fields. */
+/** Allowed trigger kinds in templates (mirror of TriggerInput.kind). */
+const ALLOWED_TRIGGER_KINDS = new Set(["pulse", "cron", "oneoff", "hook", "api", "github"]);
+
+/**
+ * Minimal shape check; throws on missing required fields. Per-kind detail
+ * validation (interval parsing, cron syntax, github repo shape, …) is left
+ * to `_mutate.resolveTrigger` so the install path and the LLM tool path
+ * report errors identically.
+ */
 function validateTemplate(raw: unknown): RoutineTemplate {
 	if (!raw || typeof raw !== "object") throw new Error("not an object");
 	const t = raw as Record<string, unknown>;
@@ -48,14 +57,40 @@ function validateTemplate(raw: unknown): RoutineTemplate {
 	if (typeof t.description !== "string") throw new Error("missing 'description'");
 	if (typeof t.prompt !== "string" || !t.prompt) throw new Error("missing 'prompt'");
 	if (typeof t.quiet !== "boolean") throw new Error("missing 'quiet'");
-	const trig = t.trigger as Record<string, unknown> | undefined;
-	if (!trig || typeof trig !== "object") throw new Error("missing 'trigger'");
-	if (trig.kind === "pulse") {
-		if (typeof trig.interval !== "string") throw new Error("pulse trigger missing 'interval'");
-	} else if (trig.kind === "hook") {
-		if (typeof trig.event !== "string") throw new Error("hook trigger missing 'event'");
-	} else {
-		throw new Error("trigger.kind must be 'pulse' or 'hook'");
+
+	const triggers: unknown[] = [];
+	if (t.trigger !== undefined) triggers.push(t.trigger);
+	if (Array.isArray(t.triggers)) triggers.push(...t.triggers);
+	if (triggers.length === 0) throw new Error("template needs 'trigger' or 'triggers'");
+
+	for (let i = 0; i < triggers.length; i++) {
+		const trig = triggers[i] as Record<string, unknown> | undefined;
+		if (!trig || typeof trig !== "object") throw new Error(`trigger #${i + 1} not an object`);
+		if (typeof trig.kind !== "string" || !ALLOWED_TRIGGER_KINDS.has(trig.kind)) {
+			throw new Error(
+				`trigger #${i + 1}: unknown kind '${String(trig.kind)}'. Expected one of pulse|cron|oneoff|hook|api|github.`,
+			);
+		}
+		if (trig.kind === "pulse" && typeof trig.interval !== "string") {
+			throw new Error(`trigger #${i + 1}: pulse missing 'interval'`);
+		}
+		if (trig.kind === "cron" && typeof trig.expr !== "string") {
+			throw new Error(`trigger #${i + 1}: cron missing 'expr'`);
+		}
+		if (trig.kind === "oneoff" && typeof trig.fireAtIso !== "string") {
+			throw new Error(`trigger #${i + 1}: oneoff missing 'fireAtIso'`);
+		}
+		if (trig.kind === "hook" && typeof trig.event !== "string") {
+			throw new Error(`trigger #${i + 1}: hook missing 'event'`);
+		}
+		if (trig.kind === "github") {
+			if (typeof trig.repo !== "string") {
+				throw new Error(`trigger #${i + 1}: github missing 'repo'`);
+			}
+			if (typeof trig.event !== "string") {
+				throw new Error(`trigger #${i + 1}: github missing 'event'`);
+			}
+		}
 	}
 	return raw as RoutineTemplate;
 }
@@ -100,12 +135,13 @@ export function registerRoutineInstallCommand(
 				return;
 			}
 
-			// requiredTools: warn (do not block) on missing.
+			// requiredTools: warn (do not block) on missing. Cross-platform
+			// PATH walk — avoids hard-coding `which` (Unix) vs `where` (Win).
 			const warnings: string[] = [];
 			for (const tool of template.requiredTools ?? []) {
 				try {
-					const res = await pi.exec("which", [tool]);
-					if (res.code !== 0) {
+					const found = await isToolOnPath(tool);
+					if (!found) {
 						warnings.push(`tool '${tool}' not found on PATH; routine may fail until installed`);
 					}
 				} catch {
@@ -113,22 +149,25 @@ export function registerRoutineInstallCommand(
 				}
 			}
 
-			const trigger =
-				template.trigger.kind === "pulse"
-					? ({ kind: "pulse", interval: template.trigger.interval } as const)
-					: ({
-							kind: "hook",
-							event: template.trigger.event as HookEvent,
-							...(template.trigger.once ? { once: template.trigger.once } : {}),
-						} as const);
+			// Collect every trigger in template order (single + array forms).
+			// Templates use the same raw shape that the LLM tool / slash
+			// commands use, so we can pass them straight through.
+			const triggers: TriggerInput[] = [];
+			if (template.trigger) triggers.push(template.trigger as TriggerInput);
+			if (template.triggers && template.triggers.length > 0) {
+				for (const t of template.triggers) triggers.push(t as TriggerInput);
+			}
 
 			const result = await createRoutine(
 				{
 					name: template.name,
 					prompt: template.prompt,
-					trigger,
+					triggers,
 					quiet: template.quiet,
 					...(template.maxTicks !== undefined ? { maxTicks: template.maxTicks } : {}),
+					...(template.maxRunsPerDay !== undefined
+						? { maxRunsPerDay: template.maxRunsPerDay }
+						: {}),
 				},
 				runtime,
 				pi,
