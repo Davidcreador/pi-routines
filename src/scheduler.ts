@@ -155,7 +155,7 @@ function armTrigger(
 
 function onTriggerFire(
 	routine: Routine,
-	_triggerIndex: number,
+	triggerIndex: number,
 	runtime: RoutineRuntimeState,
 	pi: ExtensionAPI,
 	getCtx: () => ExtensionContext | null,
@@ -181,6 +181,12 @@ function onTriggerFire(
 			const oldestIdx = runtime.queue.indexOf(routine.id);
 			if (oldestIdx >= 0) runtime.queue.splice(oldestIdx, 1);
 			else runtime.queue.shift();
+		}
+
+		// Record trigger origin so fireRoutine can attribute the run record.
+		const trigger = routine.triggers[triggerIndex];
+		if (trigger) {
+			runtime.triggerOrigin.set(routine.id, { index: triggerIndex, kind: trigger.kind });
 		}
 
 		runtime.queue.push(routine.id);

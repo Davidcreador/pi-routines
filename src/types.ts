@@ -117,6 +117,42 @@ export interface RoutineTickState {
 	lastFiredDateLocal: string;
 	/** Arbitrary LLM-writable state. Capped at {@link MAX_USER_STATE_BYTES}. */
 	userState: Record<string, unknown>;
+	/**
+	 * Ring buffer of recent runs, newest last. Capped at
+	 * {@link MAX_RUN_HISTORY}. Optional for back-compat with stores written
+	 * before TP-009 — readers treat missing/undefined as empty.
+	 */
+	runs?: RoutineRun[];
+}
+
+/**
+ * A single recorded execution of a routine. Pushed into
+ * {@link RoutineTickState.runs} after the routine's turn completes (or fails,
+ * or is skipped). The list is capped at {@link MAX_RUN_HISTORY}, newest last.
+ *
+ * `triggerKind` is widened to include the `"manual"` sentinel used by
+ * `/routine-run-now` (see TP-009 Step 3). For manual fires `triggerIndex`
+ * is `-1`.
+ */
+export interface RoutineRun {
+	/** nanoid — unique per run record. */
+	id: string;
+	/** Owning routine id. */
+	routineId: string;
+	/** Epoch millis when the turn was initiated. */
+	startedAt: number;
+	/** Epoch millis when the turn finalised (response, error, or skip). */
+	endedAt: number;
+	/** `endedAt - startedAt`. */
+	durationMs: number;
+	/** Outcome classification. */
+	status: "success" | "error" | "skipped" | "silent";
+	/** Index into `routine.triggers` that fired; `-1` for manual. */
+	triggerIndex: number;
+	/** Kind of trigger that fired (or `"manual"`). */
+	triggerKind: RoutineTrigger["kind"] | "manual";
+	/** First 200 chars of the assistant response (or error / skip reason). */
+	snippet: string;
 }
 
 // ─── Persisted store shape ───────────────────────────────────────────────────
@@ -150,6 +186,27 @@ export interface RoutineRuntimeState {
 	activeRoutineName: string | null;
 	/** Most recently seen ExtensionContext, for use when firing outside an event. */
 	lastUiCtx: ExtensionContext | null;
+	/**
+	 * Trigger origin for the next/current enqueue per routine id. Populated
+	 * by the scheduler / hook handlers / manual-fire command BEFORE pushing
+	 * onto `queue`, consumed by `fireRoutine` when it begins the turn.
+	 * Non-persisted; cleared on session start.
+	 */
+	triggerOrigin: Map<string, { index: number; kind: RoutineTrigger["kind"] | "manual" }>;
+	/**
+	 * The in-flight run record. Set by `fireRoutine` on acquire, populated by
+	 * the suppressor / message_end with the response snippet, finalised by
+	 * the agent_end handler. Non-persisted.
+	 */
+	pendingRun: {
+		routineId: string;
+		runId: string;
+		triggerIndex: number;
+		triggerKind: RoutineTrigger["kind"] | "manual";
+		startedAt: number;
+		snippet: string;
+		status: RoutineRun["status"];
+	} | null;
 }
 
 // ─── Parser output ───────────────────────────────────────────────────────────
@@ -206,6 +263,12 @@ export const SCHEMA_VERSION = 2 as const;
 /** Window within which fires from distinct triggers on the same routine
  *  collapse into a single enqueue (multi-trigger dedup). */
 export const MULTI_TRIGGER_COLLAPSE_MS = 500;
+
+/** Max entries kept per routine in {@link RoutineTickState.runs}. */
+export const MAX_RUN_HISTORY = 20;
+
+/** Max chars of assistant response captured into {@link RoutineRun.snippet}. */
+export const SNIPPET_MAX_CHARS = 200;
 
 /**
  * Absolute path of the persisted state file.

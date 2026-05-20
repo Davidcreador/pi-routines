@@ -27,7 +27,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { fireRoutine } from "./executor.ts";
+import { fireRoutine, recordRun } from "./executor.ts";
 import * as guard from "./guard.ts";
 import { drainQueue, scheduleRoutine, stopScheduler } from "./scheduler.ts";
 import { loadStore, saveStore } from "./store.ts";
@@ -72,7 +72,7 @@ export function registerHooks(
 
 		// Fire applicable session_start hook routines (sequentially).
 		const isReload = event.reason === "reload";
-		for (const { routine, trigger } of pickHookRoutines(runtime, "session_start")) {
+		for (const { routine, trigger, index } of pickHookRoutines(runtime, "session_start")) {
 			// On reload, suppress per_session hooks — the session continues.
 			if (isReload && trigger.once === "per_session") {
 				continue;
@@ -81,6 +81,7 @@ export function registerHooks(
 				continue;
 			}
 			try {
+				runtime.triggerOrigin.set(routine.id, { index, kind: "hook" });
 				await fireRoutine(routine, runtime, runtime.store, pi, ctx);
 			} catch (err) {
 				console.error(`[pi-routines] session_start hook '${routine.name}' failed:`, err);
@@ -100,6 +101,24 @@ export function registerHooks(
 			guard.releaseRoutineTurn(runtime);
 		}
 
+		// Finalise pending run record from the routine turn that just ended.
+		if (wasRoutineTurn && runtime.pendingRun) {
+			const pr = runtime.pendingRun;
+			const endedAt = Date.now();
+			recordRun(runtime, runtime.store, {
+				id: pr.runId,
+				routineId: pr.routineId,
+				startedAt: pr.startedAt,
+				endedAt,
+				durationMs: endedAt - pr.startedAt,
+				status: pr.status,
+				triggerIndex: pr.triggerIndex,
+				triggerKind: pr.triggerKind,
+				snippet: pr.snippet,
+			});
+			runtime.pendingRun = null;
+		}
+
 		// Always drain — newly idle ctx may unblock queued pulse routines.
 		try {
 			await drainQueue(runtime, pi, getCtx);
@@ -111,11 +130,12 @@ export function registerHooks(
 		// Routine-driven turns must never chain into another routine to avoid
 		// runaway feedback loops.
 		if (!wasRoutineTurn && ctx.hasUI) {
-			for (const { routine, trigger } of pickHookRoutines(runtime, "agent_end")) {
+			for (const { routine, trigger, index } of pickHookRoutines(runtime, "agent_end")) {
 				if (!guard.shouldFireHook(trigger, runtime.store.tickState[routine.id])) {
 					continue;
 				}
 				try {
+					runtime.triggerOrigin.set(routine.id, { index, kind: "hook" });
 					await fireRoutine(routine, runtime, runtime.store, pi, ctx);
 				} catch (err) {
 					console.error(`[pi-routines] agent_end hook '${routine.name}' failed:`, err);
@@ -141,11 +161,12 @@ export function registerHooks(
 		const shouldFireShutdown =
 			event.reason === "quit" && !guard.isRoutineTurnActive(runtime) && ctx !== null;
 		if (shouldFireShutdown) {
-			for (const { routine, trigger } of pickHookRoutines(runtime, "session_shutdown")) {
+			for (const { routine, trigger, index } of pickHookRoutines(runtime, "session_shutdown")) {
 				if (!guard.shouldFireHook(trigger, runtime.store.tickState[routine.id])) {
 					continue;
 				}
 				try {
+					runtime.triggerOrigin.set(routine.id, { index, kind: "hook" });
 					await fireRoutine(routine, runtime, runtime.store, pi, ctx);
 				} catch (err) {
 					console.error(`[pi-routines] session_shutdown hook '${routine.name}' failed:`, err);
@@ -191,12 +212,13 @@ export function registerInputTracker(pi: ExtensionAPI, runtime: RoutineRuntimeSt
 function pickHookRoutines(
 	runtime: RoutineRuntimeState,
 	event: "session_start" | "agent_end" | "session_shutdown",
-): Array<{ routine: Routine; trigger: HookTrigger }> {
-	const out: Array<{ routine: Routine; trigger: HookTrigger }> = [];
+): Array<{ routine: Routine; trigger: HookTrigger; index: number }> {
+	const out: Array<{ routine: Routine; trigger: HookTrigger; index: number }> = [];
 	for (const routine of Object.values(runtime.store.routines)) {
-		for (const trigger of routine.triggers) {
-			if (trigger.kind === "hook" && trigger.event === event) {
-				out.push({ routine, trigger });
+		for (let i = 0; i < routine.triggers.length; i++) {
+			const trigger = routine.triggers[i];
+			if (trigger && trigger.kind === "hook" && trigger.event === event) {
+				out.push({ routine, trigger, index: i });
 				break; // one entry per routine per event
 			}
 		}

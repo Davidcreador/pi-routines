@@ -13,6 +13,8 @@ function makeRuntime(): RoutineRuntimeState {
 		isRoutineTurnActive: false,
 		activeRoutineName: null,
 		lastUiCtx: null,
+		triggerOrigin: new Map(),
+		pendingRun: null,
 	};
 }
 

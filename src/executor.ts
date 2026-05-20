@@ -19,11 +19,19 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { nanoid } from "nanoid";
 import * as guard from "./guard.ts";
 import { unscheduleRoutine } from "./scheduler.ts";
 import { saveStore } from "./store.ts";
-import type { Routine, RoutineRuntimeState, RoutineStore, RoutineTickState } from "./types.ts";
-import { MAX_USER_STATE_BYTES } from "./types.ts";
+import type {
+	Routine,
+	RoutineRun,
+	RoutineRuntimeState,
+	RoutineStore,
+	RoutineTickState,
+	RoutineTrigger,
+} from "./types.ts";
+import { MAX_RUN_HISTORY, MAX_USER_STATE_BYTES } from "./types.ts";
 
 /** Build the full prompt string that will be injected into the session. */
 export function buildPrompt(routine: Routine, tickState: RoutineTickState, cwd: string): string {
@@ -100,8 +108,31 @@ export async function fireRoutine(
 		return;
 	}
 
+	// Pull (and consume) trigger origin set by scheduler / hook / manual-fire
+	// path. Default: first trigger.
+	const origin = runtime.triggerOrigin.get(routine.id) ?? {
+		index: 0,
+		kind: (routine.triggers[0]?.kind ?? "pulse") as RoutineTrigger["kind"] | "manual",
+	};
+	runtime.triggerOrigin.delete(routine.id);
+
+	const startedAt = Date.now();
+
 	try {
 		guard.acquireRoutineTurn(runtime, routine.name);
+
+		// Open the run record. The suppressor / message_end handler will
+		// populate `snippet` + downgrade to `"silent"` if the response is `[~]`.
+		// `agent_end` finalises it.
+		runtime.pendingRun = {
+			routineId: routine.id,
+			runId: nanoid(),
+			triggerIndex: origin.index,
+			triggerKind: origin.kind,
+			startedAt,
+			snippet: "",
+			status: "success",
+		};
 
 		const prompt = buildPrompt(routine, tickState, ctx.cwd);
 
@@ -116,11 +147,53 @@ export async function fireRoutine(
 			lastFiredAt: Date.now(),
 			lastFiredDateLocal: new Date().toLocaleDateString("en-CA"),
 			userState: tickState.userState ?? {},
+			runs: tickState.runs ?? [],
 		};
 		store.tickState[routine.id] = updated;
 		await saveStore(store);
 	} catch (err) {
 		guard.releaseRoutineTurn(runtime);
+		// Record the failed run synchronously — agent_end will not fire for
+		// a turn that never started.
+		recordRun(runtime, store, {
+			id: nanoid(),
+			routineId: routine.id,
+			startedAt,
+			endedAt: Date.now(),
+			durationMs: Date.now() - startedAt,
+			status: "error",
+			triggerIndex: origin.index,
+			triggerKind: origin.kind,
+			snippet: truncateSnippet(err instanceof Error ? err.message : String(err)),
+		});
+		runtime.pendingRun = null;
 		console.error(`[pi-routines] fireRoutine '${routine.name}' (${routine.id}) failed:`, err);
 	}
+}
+
+/**
+ * Push a {@link RoutineRun} into the routine's `tickState.runs` ring buffer,
+ * trimming to {@link MAX_RUN_HISTORY}, then persist. Caller must already have
+ * a `tickState` entry for the routine (created by `fireRoutine`).
+ */
+export function recordRun(
+	runtime: RoutineRuntimeState,
+	store: RoutineStore,
+	run: RoutineRun,
+): void {
+	const ts = store.tickState[run.routineId];
+	if (!ts) return;
+	const runs = ts.runs ?? [];
+	runs.push(run);
+	while (runs.length > MAX_RUN_HISTORY) runs.shift();
+	ts.runs = runs;
+	// Fire-and-forget save — saveStore is best-effort and never throws.
+	void saveStore(store);
+	void runtime; // reserved for future debounce hook
+}
+
+/** Truncate a candidate snippet to {@link SNIPPET_MAX_CHARS}. */
+export function truncateSnippet(text: string): string {
+	const trimmed = text.replace(/\s+/g, " ").trim();
+	return trimmed.length <= 200 ? trimmed : `${trimmed.slice(0, 199)}…`;
 }

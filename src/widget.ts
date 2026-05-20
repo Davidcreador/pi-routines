@@ -89,18 +89,38 @@ function formatStatus(routines: Routine[], runtime: RoutineRuntimeState): string
 	return `↺ ${routines.length} active  ${entries.join(" · ")}${tail}`;
 }
 
+function lastRunGlyph(runtime: RoutineRuntimeState, routineId: string): string {
+	const runs = runtime.store.tickState[routineId]?.runs;
+	if (!runs || runs.length === 0) return "";
+	const last = runs[runs.length - 1];
+	switch (last?.status) {
+		case "success":
+			return "✓";
+		case "error":
+			return "✗";
+		case "silent":
+			return "~";
+		case "skipped":
+			return "—";
+		default:
+			return "";
+	}
+}
+
 function tag(routine: Routine, runtime: RoutineRuntimeState): string {
 	const primary = routine.triggers[0];
-	if (!primary) return "-";
-	if (primary.kind === "hook") return primary.event;
-	if (primary.kind === "cron") return `cron`;
-	if (primary.kind === "oneoff") return `1x`;
+	const glyph = lastRunGlyph(runtime, routine.id);
+	const suffix = glyph ? ` ${glyph}` : "";
+	if (!primary) return `-${suffix}`;
+	if (primary.kind === "hook") return `${primary.event}${suffix}`;
+	if (primary.kind === "cron") return `cron${suffix}`;
+	if (primary.kind === "oneoff") return `1x${suffix}`;
 	const tickState = runtime.store.tickState[routine.id];
 	if (routine.quiet) {
-		return `q·${tickState?.tickCount ?? 0}`;
+		return `q·${tickState?.tickCount ?? 0}${suffix}`;
 	}
 	const minutes = minutesUntilNext(routine, tickState?.lastFiredAt);
-	return `${minutes}m`;
+	return `${minutes}m${suffix}`;
 }
 
 function minutesUntilNext(routine: Routine, lastFiredAt: number | undefined): number {
