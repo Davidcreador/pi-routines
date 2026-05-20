@@ -27,10 +27,13 @@ import { registerRoutineInstallCommand } from "../src/commands/routine-install.t
 import { registerRoutineOnCommand } from "../src/commands/routine-on.ts";
 import { registerRoutineRunNowCommand } from "../src/commands/routine-run-now.ts";
 import { registerRoutineRunsCommand } from "../src/commands/routine-runs.ts";
+import { registerRoutineServerCommand } from "../src/commands/routine-server.ts";
 import { registerRoutineStopCommand } from "../src/commands/routine-stop.ts";
+import { registerRoutineTokenCommand } from "../src/commands/routine-token.ts";
 import { registerRoutinesCommand } from "../src/commands/routines.ts";
 import { registerHooks, registerInputTracker } from "../src/hooks.ts";
 import { stopScheduler } from "../src/scheduler.ts";
+import { stopServer } from "../src/server.ts";
 import { emptyStore } from "../src/store.ts";
 import { registerSuppressor } from "../src/suppressor.ts";
 import { registerRoutineCreateTool } from "../src/tools/routine-create.ts";
@@ -93,6 +96,8 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	registerRoutineExportCronCommand(pi, runtime);
 	registerRoutineRunNowCommand(pi, runtime, getCtx);
 	registerRoutineRunsCommand(pi, runtime);
+	registerRoutineServerCommand(pi, runtime, getCtx);
+	registerRoutineTokenCommand(pi, runtime);
 
 	// 3. Suppressor (message_end interceptor for `[~]`).
 	registerSuppressor(pi, runtime);
@@ -118,6 +123,11 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	const cleanup = (): void => {
 		try {
 			stopScheduler(runtime);
+		} catch {
+			/* swallow during teardown */
+		}
+		try {
+			void stopServer(runtime);
 		} catch {
 			/* swallow during teardown */
 		}

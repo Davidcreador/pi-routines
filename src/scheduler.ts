@@ -150,6 +150,8 @@ function armTrigger(
 		}
 		case "hook":
 			return null; // armed by hooks.ts
+		case "api":
+			return null; // armed by the HTTP server (src/server.ts)
 	}
 }
 
