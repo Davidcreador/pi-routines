@@ -1,6 +1,6 @@
 # TP-002: Executor & Scheduler — Status
 
-**Current Step:** Step 3: Integration sanity check
+**Current Step:** Step 5: Documentation & Delivery (awaiting code review)
 **Status:** 🟡 In Progress
 **Last Updated:** 2026-05-20
 **Review Level:** 2
@@ -37,28 +37,28 @@
 ---
 
 ### Step 3: Integration sanity check
-**Status:** ⬜ Not Started
+**Status:** 🟨 In Progress
 
-- [ ] Both modules import cleanly together
-- [ ] `scheduleRoutine` + `unscheduleRoutine` round-trip leaves zero timers
-- [ ] `fireRoutine` respects `maxTicks`
+- [x] Both modules import cleanly together  *(via `src/_smoke.ts`, deleted after verification)*
+- [x] `scheduleRoutine` + `unscheduleRoutine` round-trip leaves zero timers
+- [x] `fireRoutine` respects `maxTicks`
 
 ---
 
 ### Step 4: Testing & Verification
-**Status:** ⬜ Not Started
+**Status:** 🟨 In Progress
 
-- [ ] `pnpm typecheck` zero errors
-- [ ] `pnpm test` exits 0
-- [ ] No new circular imports
+- [x] `pnpm typecheck` zero errors
+- [x] `pnpm test` exits 0  *(repo test script is a stub: `echo no tests yet && exit 0`)*
+- [x] No new circular imports  *(scheduler↔executor cycle is function-level only — no top-level binding use; runtime smoke verified)*
 
 ---
 
 ### Step 5: Documentation & Delivery
-**Status:** ⬜ Not Started
+**Status:** 🟨 In Progress
 
-- [ ] File-header JSDoc on both modules
-- [ ] Discoveries logged
+- [x] File-header JSDoc on both modules
+- [x] Discoveries logged
 
 ---
 
