@@ -1,54 +1,54 @@
 # TP-003: Suppressor & Widget — Status
 
-**Current Step:** Not Started
-**Status:** 🔵 Ready for Execution
-**Last Updated:** 2026-05-19
+**Current Step:** Step 4: Documentation & Delivery
+**Status:** ✅ Complete
+**Last Updated:** 2026-05-20
 **Review Level:** 1
 **Review Counter:** 0
-**Iteration:** 0
+**Iteration:** 1
 **Size:** S
 
 ---
 
 ### Step 0: Preflight
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] TP-001 complete
-- [ ] `SILENT_TOKEN`, `RoutineRuntimeState` exported from `src/types.ts`
+- [x] TP-001 complete
+- [x] `SILENT_TOKEN`, `RoutineRuntimeState` exported from `src/types.ts`
 
 ---
 
 ### Step 1: src/suppressor.ts
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Implement `registerSuppressor` and `extractText`
-- [ ] Use `text.trim() === SILENT_TOKEN` (exact match, not `startsWith`)
-- [ ] Handle multi-block messages and image-only messages
+- [x] Implement `registerSuppressor` and `extractText`
+- [x] Use `text.trim() === SILENT_TOKEN` (exact match, not `startsWith`)
+- [x] Handle multi-block messages and image-only messages
 
 ---
 
 ### Step 2: src/widget.ts
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Implement `updateWidget` / `startWidgetRefresh` / `clearWidget`
-- [ ] Format active-routine summary with truncation and `+N more` overflow
-- [ ] No-op when `ctx.hasUI === false`
+- [x] Implement `updateWidget` / `startWidgetRefresh` / `clearWidget`
+- [x] Format active-routine summary with truncation and `+N more` overflow
+- [x] No-op when `ctx.hasUI === false`
 
 ---
 
 ### Step 3: Testing & Verification
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] `pnpm typecheck` zero errors
-- [ ] `pnpm test` exits 0
+- [x] `pnpm typecheck` zero errors
+- [x] `pnpm test` exits 0 (placeholder script: `echo 'no tests yet' && exit 0`)
 
 ---
 
 ### Step 4: Documentation & Delivery
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] File-header JSDoc on both modules
-- [ ] Log any plan deviations in Discoveries
+- [x] File-header JSDoc on both modules
+- [x] Log any plan deviations in Discoveries
 
 ---
 
@@ -63,6 +63,8 @@
 
 | Discovery | Disposition | Location |
 |-----------|-------------|----------|
+| PLAN.md `text.trimStart().startsWith(SILENT_TOKEN)` would suppress `"[~] also FYI ..."` messages | Replaced with `text.trim() === SILENT_TOKEN` exact-equality check; documented in suppressor.ts file header and PROMPT amendment below | src/suppressor.ts |
+| `MessageEndEvent` / `AgentMessage` not re-exported from `@earendil-works/pi-coding-agent` package root (only via sub-path `./core/extensions/index.js` which is not in `exports`) | Duck-typed `MessageLike = { role: string; content: unknown }` locally in suppressor.ts | src/suppressor.ts |
 
 ---
 
@@ -71,6 +73,8 @@
 | Timestamp | Action | Outcome |
 |-----------|--------|---------|
 | 2026-05-19 | Task staged | PROMPT.md and STATUS.md created |
+| 2026-05-20 00:20 | Task started | Runtime V2 lane-runner execution |
+| 2026-05-20 00:20 | Step 0 started | Preflight |
 
 ---
 

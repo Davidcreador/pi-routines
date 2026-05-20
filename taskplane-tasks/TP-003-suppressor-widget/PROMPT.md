@@ -172,4 +172,17 @@ Implement exactly as specified in `PLAN.md` Phase 8.
 
 ## Amendments (Added During Execution)
 
-<!-- Workers add amendments here if issues are discovered during execution. -->
+### A1 — Suppressor exact-equality check (2026-05-20)
+
+PLAN.md Phase 7 specified `text.trimStart().startsWith(SILENT_TOKEN)`. PROMPT
+edge-case section explicitly overrode this to require `text.trim() === SILENT_TOKEN`.
+Implementation follows the PROMPT. Documented in `src/suppressor.ts` file header.
+
+### A2 — AgentMessage type import (2026-05-20)
+
+`@earendil-works/pi-coding-agent` does not re-export `MessageEndEvent` or
+`AgentMessage` from its package root, and `package.json#exports` only exposes
+`.` and `./hooks`. Rather than reach into an unsupported sub-path, suppressor
+duck-types the message as `{ role: string; content: unknown }` for the
+text-extraction path. The handler spreads `event.message` to preserve all
+other fields (api, provider, model, usage, …) in the replacement.
