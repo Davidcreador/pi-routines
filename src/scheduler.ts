@@ -82,7 +82,7 @@ export function scheduleRoutine(
 
 			// Backpressure: drop the OLDEST entry for this routine before push.
 			if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-				const oldestIdx = runtime.queue.findIndex((id) => id === routine.id);
+				const oldestIdx = runtime.queue.indexOf(routine.id);
 				if (oldestIdx >= 0) {
 					runtime.queue.splice(oldestIdx, 1);
 				} else {

@@ -87,7 +87,7 @@ export function registerRoutineCommand(
 				return;
 			}
 			const split = splitIntervalAndPrompt(trimmed);
-			if (!split || !split.rest) {
+			if (!split?.rest) {
 				send(
 					pi,
 					"Could not parse an interval from the start of your command.\n" +
