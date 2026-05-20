@@ -37,7 +37,51 @@ normal LLM turns, with full tool access.
 
 ## Install
 
-### 1. Clone the repo
+### Quick install (recommended — via the `pi` CLI)
+
+If you don't have pi yet:
+
+```bash
+curl -fsSL https://pi.dev/install.sh | sh
+# or
+npm install -g @earendil-works/pi-coding-agent
+```
+
+Then install this package:
+
+```bash
+pi install git:github.com/Davidcreador/pi-routines
+```
+
+Pin to a release tag:
+
+```bash
+pi install git:github.com/Davidcreador/pi-routines@v0.1.0
+```
+
+Project-local install (writes to `.pi/git/` instead of `~/.pi/agent/git/`):
+
+```bash
+pi install -l git:github.com/Davidcreador/pi-routines
+```
+
+Restart pi (or run `/reload`) — the extension auto-loads. You'll see new slash
+commands (`/routine`, `/routines`, `/routine-install`, …) and a footer widget
+showing active routine count.
+
+> ⚠️ **Security:** pi packages run with full system access. Review the source
+> before installing third-party packages.
+
+### Manage the package
+
+```bash
+pi list                                          # show installed packages
+pi update git:github.com/Davidcreador/pi-routines # update this package
+pi remove git:github.com/Davidcreador/pi-routines # uninstall
+pi config                                        # enable/disable extensions, skills
+```
+
+### Manual install (alternative — for development or pinned local paths)
 
 ```bash
 git clone https://github.com/Davidcreador/pi-routines.git
@@ -45,10 +89,7 @@ cd pi-routines
 pnpm install
 ```
 
-### 2. Register the extension with pi
-
-Edit `~/.pi/agent/settings.json` and add the absolute path to this repo to the
-`extensions` array:
+Then register the absolute path in `~/.pi/agent/settings.json`:
 
 ```json
 {
@@ -56,15 +97,9 @@ Edit `~/.pi/agent/settings.json` and add the absolute path to this repo to the
 }
 ```
 
-> 💡 Back up first: `cp ~/.pi/agent/settings.json{,.bak}`
+> 💡 Back up first: `cp ~/.pi/agent/settings.json{,.bak}`. Restart pi after editing.
 
-### 3. Restart pi
-
-The extension auto-loads on session start. You'll see new slash commands
-(`/routine`, `/routines`, `/routine-install`, …) and a footer widget showing
-active routine count.
-
-### Uninstall
+### Uninstall (manual install)
 
 Remove the path from `~/.pi/agent/settings.json` and restart pi. Optionally
 delete persisted state: `rm ~/.pi/agent/extensions/routines/state.json`.
@@ -100,28 +135,28 @@ delete persisted state: `rm ~/.pi/agent/extensions/routines/state.json`.
 
 ## Slash Commands
 
-| Command | Purpose |
-|---|---|
-| `/routine <interval> <prompt>` | Create a **pulse** routine. e.g. `/routine 10m check the build` |
+| Command                        | Purpose                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `/routine <interval> <prompt>` | Create a **pulse** routine. e.g. `/routine 10m check the build`                     |
 | `/routine-on <event> <prompt>` | Create a **hook** routine. Events: `session_start`, `agent_end`, `session_shutdown` |
-| `/routines` | List active routines (id, name, trigger, last tick) |
-| `/routine-install <template>` | Install a bundled template by name |
-| `/routine-stop <id\|name>` | Stop and delete a routine |
-| `/routine-export-cron` | Export routines as standalone prompt files + optional macOS launchd plists |
+| `/routines`                    | List active routines (id, name, trigger, last tick)                                 |
+| `/routine-install <template>`  | Install a bundled template by name                                                  |
+| `/routine-stop <id\|name>`     | Stop and delete a routine                                                           |
+| `/routine-export-cron`         | Export routines as standalone prompt files + optional macOS launchd plists          |
 
 ---
 
 ## Bundled Templates
 
-| Template | Trigger | What it does |
-|---|---|---|
-| `ci-watch` | every 3m | Polls CI for the current branch; alerts on status change. Requires `gh`. |
-| `pomodoro` | every 25m, 8× | Focus check-in: progress, rabbit holes, next 25-min suggestion. |
-| `morning-briefing` | `session_start` (once daily) | Git log summary + todo file scan + 3-bullet day-plan. |
-| `deploy-watch` | every 5m | Monitors a deploy URL or process; alerts on failure or success. |
-| `session-wrap` | `session_shutdown` | End-of-session summary: what shipped, open threads, next session. |
-| `pr-babysitter` | every 10m | Watches your open PR for new reviews/comments. |
-| `test-guardian` | every 2m | Re-runs the failing test you're working on; alerts when it passes. |
+| Template           | Trigger                      | What it does                                                             |
+| ------------------ | ---------------------------- | ------------------------------------------------------------------------ |
+| `ci-watch`         | every 3m                     | Polls CI for the current branch; alerts on status change. Requires `gh`. |
+| `pomodoro`         | every 25m, 8×                | Focus check-in: progress, rabbit holes, next 25-min suggestion.          |
+| `morning-briefing` | `session_start` (once daily) | Git log summary + todo file scan + 3-bullet day-plan.                    |
+| `deploy-watch`     | every 5m                     | Monitors a deploy URL or process; alerts on failure or success.          |
+| `session-wrap`     | `session_shutdown`           | End-of-session summary: what shipped, open threads, next session.        |
+| `pr-babysitter`    | every 10m                    | Watches your open PR for new reviews/comments.                           |
+| `test-guardian`    | every 2m                     | Re-runs the failing test you're working on; alerts when it passes.       |
 
 ---
 
@@ -130,12 +165,12 @@ delete persisted state: `rm ~/.pi/agent/extensions/routines/state.json`.
 The agent itself can manage routines via these tools (use them from a routine
 prompt or any conversational turn):
 
-| Tool | Purpose |
-|---|---|
-| `RoutineCreate` | Create a pulse or hook routine |
-| `RoutineList` | List active routines |
-| `RoutineDelete` | Stop and remove a routine (often used from within a routine to self-terminate) |
-| `RoutineSetState` | Persist arbitrary state between ticks (e.g. "last CI status I reported") |
+| Tool              | Purpose                                                                        |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `RoutineCreate`   | Create a pulse or hook routine                                                 |
+| `RoutineList`     | List active routines                                                           |
+| `RoutineDelete`   | Stop and remove a routine (often used from within a routine to self-terminate) |
+| `RoutineSetState` | Persist arbitrary state between ticks (e.g. "last CI status I reported")       |
 
 See [`skills/routine/SKILL.md`](./skills/routine/SKILL.md) for the full LLM-facing
 guide that pi auto-injects when relevant.
@@ -144,11 +179,11 @@ guide that pi auto-injects when relevant.
 
 ## State & Files
 
-| Path | Purpose |
-|---|---|
+| Path                                         | Purpose                                                              |
+| -------------------------------------------- | -------------------------------------------------------------------- |
 | `~/.pi/agent/extensions/routines/state.json` | Persistent routines + per-routine tick state (atomic write + `.bak`) |
-| `~/.pi/routines/prompts/<name>.md` | `routine-export-cron` writes per-routine prompt files here |
-| `~/.pi/routines/launchd/<name>.plist` | `routine-export-cron` optionally writes macOS launchd plists |
+| `~/.pi/routines/prompts/<name>.md`           | `routine-export-cron` writes per-routine prompt files here           |
+| `~/.pi/routines/launchd/<name>.plist`        | `routine-export-cron` optionally writes macOS launchd plists         |
 
 State is **fault-tolerant**: corrupt JSON or missing file → empty store, log
 warning, continue. Disk-full / permission errors on save → log to stderr, keep
