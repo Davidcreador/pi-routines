@@ -1,6 +1,37 @@
 {
-  "files": {},
+  "files": {
+    "skills/routine/SKILL.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 108
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:23:44.175Z"
+    },
+    "taskplane-tasks/CONTEXT.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 94
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:23:44.281Z"
+    },
+    "taskplane-tasks/TP-004-templates-skill/STATUS.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 97
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:23:44.390Z"
+    }
+  },
   "turnCycles": 0,
   "maxCycles": 3,
-  "lastUpdated": "2026-05-20T00:23:34.551Z"
+  "lastUpdated": "2026-05-20T00:23:44.390Z"
 }

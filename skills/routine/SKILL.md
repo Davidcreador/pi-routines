@@ -56,15 +56,15 @@ nothing's new", set `quiet: true`. Otherwise leave it `false`.
 
 Install any of these with `/routine-install <name>`.
 
-| Name               | Trigger              | Quiet | Notes                                      |
-| ------------------ | -------------------- | ----- | ------------------------------------------ |
-| `ci-watch`         | pulse 3m             | yes   | Requires `gh`. Alerts on CI status change. |
-| `morning-briefing` | session_start daily  | no    | Git log + todo summary at first start.     |
-| `pomodoro`         | pulse 25m, max 8     | no    | Focus check-in; auto-stops after 8 ticks.  |
-| `deploy-watch`     | pulse 2m             | yes   | Self-deletes when deploy finishes.         |
-| `session-wrap`     | session_shutdown     | no    | Writes session summary to Engram.          |
-| `pr-babysitter`    | pulse 15m            | yes   | Requires `gh`. Watches your open PRs.      |
-| `test-guardian`    | pulse 5m             | yes   | Re-runs the test suite during TDD.         |
+| Name               | Trigger             | Quiet | Notes                                      |
+| ------------------ | ------------------- | ----- | ------------------------------------------ |
+| `ci-watch`         | pulse 3m            | yes   | Requires `gh`. Alerts on CI status change. |
+| `morning-briefing` | session_start daily | no    | Git log + todo summary at first start.     |
+| `pomodoro`         | pulse 25m, max 8    | no    | Focus check-in; auto-stops after 8 ticks.  |
+| `deploy-watch`     | pulse 2m            | yes   | Self-deletes when deploy finishes.         |
+| `session-wrap`     | session_shutdown    | no    | Writes session summary to Engram.          |
+| `pr-babysitter`    | pulse 15m           | yes   | Requires `gh`. Watches your open PRs.      |
+| `test-guardian`    | pulse 5m            | yes   | Re-runs the test suite during TDD.         |
 
 `requiredTools` is a warning at install time, not a block — the user can
 proceed without `gh` if they accept the routine will probably fail.
@@ -77,6 +77,7 @@ call `RoutineDelete` when deployment completes or fails. Use this pattern
 whenever the routine has a natural end condition the model can recognize.
 
 Common shapes:
+
 - "When `<condition>` is met, call RoutineDelete with name='<self>'."
 - Pair with `RoutineSetState` so the model can track progress across ticks
   before terminating.
