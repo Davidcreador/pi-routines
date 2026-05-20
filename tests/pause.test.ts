@@ -150,6 +150,32 @@ describe("pause / resume", () => {
 		enqueueTriggerFire(live, 0, rt, fakePi, getCtx);
 		assert.equal(rt.queue.length, 1);
 	});
+
+	it("deleteRoutine drops queued state + transient maps for the deleted routine", async () => {
+		const { deleteRoutine } = await import("../src/tools/_mutate.ts");
+		const rt = makeRuntime();
+		liveRuntimes.push(rt);
+		const created = await createRoutine(
+			{ name: "w", prompt: "x", trigger: { kind: "pulse", interval: "1m" } },
+			rt,
+			fakePi,
+			getCtx,
+		);
+		assert.ok(!("error" in created));
+		if ("error" in created) return;
+		// Simulate a pending api/github fire that the user deletes before it drains.
+		rt.queue.push(created.id);
+		rt.triggerOrigin.set(created.id, { index: 0, kind: "pulse" });
+		rt.apiArgs = new Map();
+		rt.apiArgs.set(created.id, { foo: "bar" });
+		rt.githubEvents = new Map();
+		rt.githubEvents.set(created.id, { number: 1 });
+		await deleteRoutine("w", rt);
+		assert.equal(rt.queue.includes(created.id), false);
+		assert.equal(rt.triggerOrigin.has(created.id), false);
+		assert.equal(rt.apiArgs?.has(created.id), false);
+		assert.equal(rt.githubEvents?.has(created.id), false);
+	});
 });
 
 // Capture tools registered via pi.registerTool() so we can invoke their
