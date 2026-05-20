@@ -27,7 +27,13 @@ interface Details {
 
 function describeTrigger(t: RoutineTrigger): string {
 	if (t.kind === "pulse") return `every ${t.intervalHuman}`;
+	if (t.kind === "cron") return `cron '${t.expr}'${t.timezone ? ` ${t.timezone}` : ""}`;
+	if (t.kind === "oneoff") return `at ${t.fireAtIso}`;
 	return t.once ? `on ${t.event} (${t.once})` : `on ${t.event}`;
+}
+
+function describeTriggers(triggers: RoutineTrigger[]): string {
+	return triggers.map(describeTrigger).join(" + ");
 }
 
 /** Convert epoch millis to a coarse "N units ago" / "never" string. */
@@ -72,7 +78,7 @@ export function registerRoutineListTool(pi: ExtensionAPI, runtime: RoutineRuntim
 				return {
 					id: r.id,
 					name: r.name,
-					triggerDescription: describeTrigger(r.trigger),
+					triggerDescription: describeTriggers(r.triggers),
 					tickCount: tick?.tickCount ?? 0,
 					lastFiredAt: relativeTime(tick?.lastFiredAt ?? 0),
 					quiet: r.quiet,

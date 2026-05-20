@@ -31,7 +31,7 @@ import { fireRoutine } from "./executor.ts";
 import * as guard from "./guard.ts";
 import { drainQueue, scheduleRoutine, stopScheduler } from "./scheduler.ts";
 import { loadStore, saveStore } from "./store.ts";
-import type { Routine, RoutineRuntimeState } from "./types.ts";
+import type { HookTrigger, Routine, RoutineRuntimeState } from "./types.ts";
 import { clearWidget, updateWidget } from "./widget.ts";
 
 /**
@@ -65,21 +65,19 @@ export function registerHooks(
 		// Print mode: register-only path. No timers, no widget, no hook fires.
 		if (!ctx.hasUI) return;
 
-		// Re-arm pulse timers.
+		// Re-arm timers for every routine; scheduler decides per trigger.
 		for (const routine of Object.values(runtime.store.routines)) {
-			if (routine.trigger.kind === "pulse") {
-				scheduleRoutine(routine, runtime, pi, getCtx);
-			}
+			scheduleRoutine(routine, runtime, pi, getCtx);
 		}
 
 		// Fire applicable session_start hook routines (sequentially).
 		const isReload = event.reason === "reload";
-		for (const routine of pickHookRoutines(runtime, "session_start")) {
+		for (const { routine, trigger } of pickHookRoutines(runtime, "session_start")) {
 			// On reload, suppress per_session hooks — the session continues.
-			if (isReload && routine.trigger.kind === "hook" && routine.trigger.once === "per_session") {
+			if (isReload && trigger.once === "per_session") {
 				continue;
 			}
-			if (!guard.shouldFireHook(routine, runtime.store.tickState[routine.id])) {
+			if (!guard.shouldFireHook(trigger, runtime.store.tickState[routine.id])) {
 				continue;
 			}
 			try {
@@ -113,8 +111,8 @@ export function registerHooks(
 		// Routine-driven turns must never chain into another routine to avoid
 		// runaway feedback loops.
 		if (!wasRoutineTurn && ctx.hasUI) {
-			for (const routine of pickHookRoutines(runtime, "agent_end")) {
-				if (!guard.shouldFireHook(routine, runtime.store.tickState[routine.id])) {
+			for (const { routine, trigger } of pickHookRoutines(runtime, "agent_end")) {
+				if (!guard.shouldFireHook(trigger, runtime.store.tickState[routine.id])) {
 					continue;
 				}
 				try {
@@ -143,8 +141,8 @@ export function registerHooks(
 		const shouldFireShutdown =
 			event.reason === "quit" && !guard.isRoutineTurnActive(runtime) && ctx !== null;
 		if (shouldFireShutdown) {
-			for (const routine of pickHookRoutines(runtime, "session_shutdown")) {
-				if (!guard.shouldFireHook(routine, runtime.store.tickState[routine.id])) {
+			for (const { routine, trigger } of pickHookRoutines(runtime, "session_shutdown")) {
+				if (!guard.shouldFireHook(trigger, runtime.store.tickState[routine.id])) {
 					continue;
 				}
 				try {
@@ -193,11 +191,14 @@ export function registerInputTracker(pi: ExtensionAPI, runtime: RoutineRuntimeSt
 function pickHookRoutines(
 	runtime: RoutineRuntimeState,
 	event: "session_start" | "agent_end" | "session_shutdown",
-): Routine[] {
-	const out: Routine[] = [];
+): Array<{ routine: Routine; trigger: HookTrigger }> {
+	const out: Array<{ routine: Routine; trigger: HookTrigger }> = [];
 	for (const routine of Object.values(runtime.store.routines)) {
-		if (routine.trigger.kind === "hook" && routine.trigger.event === event) {
-			out.push(routine);
+		for (const trigger of routine.triggers) {
+			if (trigger.kind === "hook" && trigger.event === event) {
+				out.push({ routine, trigger });
+				break; // one entry per routine per event
+			}
 		}
 	}
 	return out;
