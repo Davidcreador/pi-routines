@@ -42,6 +42,31 @@
       "file": "src/widget.ts"
     },
     {
+      "type": "file",
+      "name": "src/tools/_resolve.ts",
+      "file": "src/tools/_resolve.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-create.ts",
+      "file": "src/tools/routine-create.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-delete.ts",
+      "file": "src/tools/routine-delete.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-list.ts",
+      "file": "src/tools/routine-list.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-set-state.ts",
+      "file": "src/tools/routine-set-state.ts"
+    },
+    {
       "type": "dependency",
       "name": "typebox",
       "file": "package.json",
@@ -95,6 +120,31 @@
       "type": "file",
       "name": "src/widget.ts",
       "file": "src/widget.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/_resolve.ts",
+      "file": "src/tools/_resolve.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-create.ts",
+      "file": "src/tools/routine-create.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-delete.ts",
+      "file": "src/tools/routine-delete.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-list.ts",
+      "file": "src/tools/routine-list.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/tools/routine-set-state.ts",
+      "file": "src/tools/routine-set-state.ts"
     }
   ],
   "unusedDeps": [
@@ -112,5 +162,5 @@
     }
   ],
   "unlistedDeps": [],
-  "summary": "Found 10 issues"
+  "summary": "Found 15 issues"
 }

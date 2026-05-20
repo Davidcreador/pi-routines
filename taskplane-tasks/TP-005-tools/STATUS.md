@@ -1,72 +1,72 @@
 # TP-005: Tools — Status
 
-**Current Step:** Not Started
-**Status:** 🔵 Ready for Execution
-**Last Updated:** 2026-05-19
+**Current Step:** Step 6: Documentation & Delivery
+**Status:** ✅ Complete
+**Last Updated:** 2026-05-20
 **Review Level:** 1
 **Review Counter:** 0
-**Iteration:** 0
+**Iteration:** 1
 **Size:** M
 
 ---
 
 ### Step 0: Preflight
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] TP-001 and TP-002 complete
+- [x] TP-001 and TP-002 complete (both .DONE files exist; types/parser/scheduler/store inspected)
 
 ---
 
 ### Step 1: routine-create.ts
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] TypeBox schema with pulse/hook union
-- [ ] All validation cases (name regex, interval parse, agent_end uniqueness, 20-routine cap)
-- [ ] Upsert semantics for existing name
-- [ ] Schedule pulse on success
+- [x] TypeBox schema with pulse/hook union
+- [x] All validation cases (name regex, interval parse, agent_end uniqueness, 20-routine cap)
+- [x] Upsert semantics for existing name
+- [x] Schedule pulse on success
 
 ---
 
 ### Step 2: routine-list.ts
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Sorted list with relative timestamps
-- [ ] Table-formatted `renderResult`
+- [x] Sorted list with relative timestamps
+- [x] Table-formatted `renderResult`
 
 ---
 
 ### Step 3: routine-delete.ts
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] id-then-name resolution
-- [ ] Helpful error with current routine list on not-found
-- [ ] Unschedule + remove + save
+- [x] id-then-name resolution (via _resolve.ts helper)
+- [x] Helpful error with current routine list on not-found
+- [x] Unschedule + remove + save
 
 ---
 
 ### Step 4: routine-set-state.ts
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Deep merge into `userState`
-- [ ] 2KB size guard
-- [ ] Save store
+- [x] Deep merge into `userState`
+- [x] 2KB size guard
+- [x] Save store
 
 ---
 
 ### Step 5: Testing & Verification
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] `pnpm typecheck` zero errors
-- [ ] `pnpm test` exits 0
-- [ ] JSDoc on all four files
+- [x] `pnpm typecheck` zero errors
+- [x] `pnpm test` exits 0 (placeholder suite)
+- [x] JSDoc on all four files + register fns
 
 ---
 
 ### Step 6: Documentation & Delivery
-**Status:** ⬜ Not Started
+**Status:** ✅ Complete
 
-- [ ] Discoveries logged in CONTEXT.md
-- [ ] `_resolve.ts` helper noted if extracted
+- [x] Discoveries logged in CONTEXT.md
+- [x] `_resolve.ts` helper noted in Discoveries
 
 ---
 
@@ -89,6 +89,8 @@
 | Timestamp | Action | Outcome |
 |-----------|--------|---------|
 | 2026-05-19 | Task staged | PROMPT.md and STATUS.md created |
+| 2026-05-20 00:36 | Task started | Runtime V2 lane-runner execution |
+| 2026-05-20 00:36 | Step 0 started | Preflight |
 
 ---
 
