@@ -1,0 +1,35 @@
+{
+  "configVersion": 1,
+  "taskRunner": {
+    "project": {
+      "name": "pi-routines",
+      "description": "Pi extension providing recurring in-session routines and event-driven hooks"
+    },
+    "paths": {
+      "tasks": "taskplane-tasks"
+    },
+    "testing": {
+      "commands": {
+        "unit": "pnpm test",
+        "build": "pnpm typecheck"
+      }
+    },
+    "taskAreas": {
+      "general": {
+        "path": "taskplane-tasks",
+        "prefix": "TP",
+        "context": "taskplane-tasks/CONTEXT.md"
+      }
+    },
+    "referenceDocs": {
+      "plan": {
+        "path": "PLAN.md",
+        "description": "Full implementation plan with phase-by-phase details, edge case matrix, and file specs"
+      }
+    },
+    "standards": {
+      "language": "TypeScript (strict, ESM, node 22+)",
+      "style": "2-space indent, double quotes, semicolons, trailing commas"
+    }
+  }
+}

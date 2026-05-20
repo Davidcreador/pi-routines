@@ -1,0 +1,88 @@
+# pi-routines — Task Area Context
+
+**Next Task ID:** 8
+
+## Current State
+
+This area owns the complete pi-routines extension implementation. The extension
+gives Pi sessions the ability to run recurring prompts (pulse routines) and
+event-driven hooks. See `PLAN.md` at the repo root for the full design.
+
+### Module ownership (target layout)
+
+```
+pi-routines/
+├── package.json                    # TP-001
+├── tsconfig.json                   # TP-001
+├── PLAN.md                         # Reference (immutable for these tasks)
+├── extensions/
+│   └── index.ts                    # TP-006 (entry point + wiring)
+├── src/
+│   ├── types.ts                    # TP-001
+│   ├── store.ts                    # TP-001
+│   ├── parser.ts                   # TP-001
+│   ├── guard.ts                    # TP-001
+│   ├── executor.ts                 # TP-002
+│   ├── scheduler.ts                # TP-002
+│   ├── suppressor.ts               # TP-003
+│   ├── widget.ts                   # TP-003
+│   ├── hooks.ts                    # TP-006
+│   ├── tools/                      # TP-005
+│   │   ├── routine-create.ts
+│   │   ├── routine-list.ts
+│   │   ├── routine-delete.ts
+│   │   └── routine-set-state.ts
+│   └── commands/                   # TP-007
+│       ├── routine.ts
+│       ├── routine-on.ts
+│       ├── routines.ts
+│       ├── routine-stop.ts
+│       ├── routine-install.ts
+│       └── routine-export-cron.ts
+├── skills/routine/SKILL.md         # TP-004
+└── templates/*.json (7 files)      # TP-004
+```
+
+### Build / test commands
+
+- **Typecheck:** `pnpm typecheck` (runs `tsc --noEmit`)
+- **Tests:** `pnpm test` (initially no tests; workers add unit tests where useful)
+- **Install deps:** `pnpm install`
+
+### Dependencies (npm)
+
+- `@earendil-works/pi-coding-agent` (peer) — extension API
+- `@earendil-works/pi-tui` (peer) — TUI primitives
+- `typebox` (dep) — tool schema validation
+- `nanoid` (dep) — routine IDs
+
+## Wave Layout
+
+```
+Wave 1: TP-001 (foundation)
+Wave 2: TP-002, TP-003, TP-004 (parallel — non-overlapping files)
+Wave 3: TP-005 (tools)
+Wave 4: TP-007 (slash commands)
+Wave 5: TP-006 (hooks + entry point wiring)
+```
+
+## Architectural Invariants (do not violate)
+
+1. **All shared shapes live in `src/types.ts`.** Other modules import from there.
+2. **`store.ts` is the only writer of `state.json`.** Atomic writes via tmp+rename.
+3. **Recursion guard is checked in every event hook handler.** No exceptions.
+4. **`pi.sendUserMessage()` is the only way routine prompts enter the session.**
+   Use `{ deliverAs: "nextTurn" }` to avoid interrupting in-flight turns.
+5. **In `--print` (headless) mode the extension is a no-op for side effects.**
+   Tools still register; timers/widgets/hooks do nothing.
+6. **Hot reload safety:** every module that holds resources (timers, intervals,
+   listeners) MUST clean up on `session_shutdown` and tolerate being loaded twice.
+
+## Discoveries Log
+
+| Discovery | Disposition | Location |
+|-----------|-------------|----------|
+| `pi.sendUserMessage` exists with `deliverAs: "steer" \| "followUp"` | Used by executor | extensions/index.ts |
+| `message_end` event allows full message replacement via return value | Used by suppressor | suppressor.ts |
+| `InputEvent.source === "extension"` identifies extension-injected input | Used by guard | guard.ts |
+| `ctx.ui.setStatus(key, text)` adds non-intrusive footer entries | Used by widget | widget.ts |
