@@ -3,6 +3,11 @@
   "issues": [
     {
       "type": "file",
+      "name": "src/executor.ts",
+      "file": "src/executor.ts"
+    },
+    {
+      "type": "file",
       "name": "src/guard.ts",
       "file": "src/guard.ts"
     },
@@ -10,6 +15,11 @@
       "type": "file",
       "name": "src/parser.ts",
       "file": "src/parser.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/scheduler.ts",
+      "file": "src/scheduler.ts"
     },
     {
       "type": "file",
@@ -38,6 +48,11 @@
   "unusedFiles": [
     {
       "type": "file",
+      "name": "src/executor.ts",
+      "file": "src/executor.ts"
+    },
+    {
+      "type": "file",
       "name": "src/guard.ts",
       "file": "src/guard.ts"
     },
@@ -45,6 +60,11 @@
       "type": "file",
       "name": "src/parser.ts",
       "file": "src/parser.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/scheduler.ts",
+      "file": "src/scheduler.ts"
     },
     {
       "type": "file",
@@ -72,5 +92,5 @@
     }
   ],
   "unlistedDeps": [],
-  "summary": "Found 6 issues"
+  "summary": "Found 8 issues"
 }

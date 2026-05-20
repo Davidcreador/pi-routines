@@ -1,26 +1,26 @@
 {
   "files": {
-    "taskplane-tasks/TP-001-foundation/STATUS.md": {
+    "taskplane-tasks/TP-002-executor-scheduler/STATUS.md": {
       "modifiedRanges": [
         {
           "start": 1,
-          "end": 134
+          "end": 113
         }
       ],
       "importsChanged": false,
-      "lastEdit": "2026-05-20T00:19:57.085Z"
+      "lastEdit": "2026-05-20T00:33:01.521Z"
     },
-    "src/types.ts": {
+    "src/executor.ts": {
       "modifiedRanges": [
         {
           "start": 1,
-          "end": 175
+          "end": 145
         }
       ],
       "importsChanged": true,
-      "lastEdit": "2026-05-20T00:20:02.184Z"
+      "lastEdit": "2026-05-20T00:33:01.614Z"
     },
-    "src/parser.ts": {
+    "src/scheduler.ts": {
       "modifiedRanges": [
         {
           "start": 1,
@@ -28,40 +28,20 @@
         }
       ],
       "importsChanged": true,
-      "lastEdit": "2026-05-20T00:20:02.243Z"
-    },
-    "src/store.ts": {
-      "modifiedRanges": [
-        {
-          "start": 1,
-          "end": 99
-        }
-      ],
-      "importsChanged": true,
-      "lastEdit": "2026-05-20T00:20:02.298Z"
-    },
-    "src/guard.ts": {
-      "modifiedRanges": [
-        {
-          "start": 1,
-          "end": 101
-        }
-      ],
-      "importsChanged": true,
-      "lastEdit": "2026-05-20T00:20:02.353Z"
+      "lastEdit": "2026-05-20T00:33:01.670Z"
     },
     "taskplane-tasks/CONTEXT.md": {
       "modifiedRanges": [
         {
           "start": 1,
-          "end": 92
+          "end": 94
         }
       ],
       "importsChanged": false,
-      "lastEdit": "2026-05-20T00:20:02.541Z"
+      "lastEdit": "2026-05-20T00:33:01.779Z"
     }
   },
   "turnCycles": 0,
   "maxCycles": 3,
-  "lastUpdated": "2026-05-20T00:20:02.541Z"
+  "lastUpdated": "2026-05-20T00:33:01.779Z"
 }
