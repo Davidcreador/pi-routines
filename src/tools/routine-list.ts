@@ -19,7 +19,9 @@ interface RoutineRow {
 	tickCount: number;
 	lastFiredAt: string;
 	quiet: boolean;
+	paused: boolean;
 	maxTicks?: number;
+	maxRunsPerDay?: number;
 }
 
 interface Details {
@@ -55,18 +57,33 @@ export function registerRoutineListTool(pi: ExtensionAPI, runtime: RoutineRuntim
 					tickCount: tick?.tickCount ?? 0,
 					lastFiredAt: relativeTime(tick?.lastFiredAt ?? 0),
 					quiet: r.quiet,
+					paused: r.paused === true,
 					...(r.maxTicks !== undefined ? { maxTicks: r.maxTicks } : {}),
+					...(r.maxRunsPerDay !== undefined ? { maxRunsPerDay: r.maxRunsPerDay } : {}),
 				};
 			});
+
+			const flagsCell = (r: RoutineRow): string => {
+				const flags = [
+					r.paused ? "paused" : "",
+					r.quiet ? "quiet" : "",
+					r.maxTicks !== undefined ? `max=${r.maxTicks}` : "",
+					r.maxRunsPerDay !== undefined ? `day=${r.maxRunsPerDay}` : "",
+				]
+					.filter(Boolean)
+					.join(" ");
+				return flags;
+			};
 
 			const text =
 				rows.length === 0
 					? "No routines active."
 					: rows
-							.map(
-								(r) =>
-									`${r.name} — ${r.triggerDescription} — ticks ${r.tickCount} — last ${r.lastFiredAt}${r.quiet ? " — quiet" : ""}${r.maxTicks !== undefined ? ` — max ${r.maxTicks}` : ""}`,
-							)
+							.map((r) => {
+								const flags = flagsCell(r);
+								const flagSuffix = flags ? ` — ${flags}` : "";
+								return `${r.name} — ${r.triggerDescription} — ticks ${r.tickCount} — last ${r.lastFiredAt}${flagSuffix}`;
+							})
 							.join("\n");
 
 			return {
@@ -91,7 +108,12 @@ export function registerRoutineListTool(pi: ExtensionAPI, runtime: RoutineRuntim
 				r.triggerDescription,
 				String(r.tickCount),
 				r.lastFiredAt,
-				[r.quiet ? "quiet" : "", r.maxTicks !== undefined ? `max=${r.maxTicks}` : ""]
+				[
+					r.paused ? "paused" : "",
+					r.quiet ? "quiet" : "",
+					r.maxTicks !== undefined ? `max=${r.maxTicks}` : "",
+					r.maxRunsPerDay !== undefined ? `day=${r.maxRunsPerDay}` : "",
+				]
 					.filter(Boolean)
 					.join(" "),
 			]);

@@ -16,7 +16,12 @@ function formatTable(routines: Routine[], runtime: RoutineRuntimeState): string 
 	const headers = ["NAME", "TRIGGER", "TICKS", "LAST", "FLAGS"];
 	const rows = routines.map((r) => {
 		const tick = runtime.store.tickState[r.id];
-		const flags = [r.quiet ? "quiet" : "", r.maxTicks !== undefined ? `max=${r.maxTicks}` : ""]
+		const flags = [
+			r.paused ? "paused" : "",
+			r.quiet ? "quiet" : "",
+			r.maxTicks !== undefined ? `max=${r.maxTicks}` : "",
+			r.maxRunsPerDay !== undefined ? `day=${r.maxRunsPerDay}` : "",
+		]
 			.filter(Boolean)
 			.join(" ");
 		return [

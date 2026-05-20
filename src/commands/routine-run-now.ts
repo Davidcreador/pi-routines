@@ -85,9 +85,12 @@ export function registerRoutineRunNowCommand(
 			runtime.triggerOrigin.set(routine.id, { index: -1, kind: "manual" });
 			runtime.queue.push(routine.id);
 
+			// Manual fires intentionally bypass `routine.paused` — pause is for
+			// the automated paths. Inform the user so the behaviour isn't surprising.
+			const note = routine.paused ? " (routine is paused; manual fire bypasses the pause)" : "";
 			pi.sendMessage({
 				customType: SYSTEM_MSG_TYPE,
-				content: `Firing '${routine.name}' now…`,
+				content: `Firing '${routine.name}' now…${note}`,
 				display: true,
 			});
 

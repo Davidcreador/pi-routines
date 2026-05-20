@@ -191,8 +191,18 @@ export function enqueueTriggerFire(
 	pi: ExtensionAPI,
 	getCtx: () => ExtensionContext | null,
 ): void {
-	if (!runtime.store.routines[routine.id]) {
+	const live = runtime.store.routines[routine.id];
+	if (!live) {
 		unscheduleRoutine(routine.id, runtime);
+		return;
+	}
+
+	// Paused routines silently drop scheduled / api / github fires. Manual
+	// fires (/routine-run-now) bypass this path entirely. We still consume
+	// the trigger origin marker so the next fire isn't tagged with stale
+	// metadata.
+	if (live.paused) {
+		runtime.triggerOrigin.delete(routine.id);
 		return;
 	}
 

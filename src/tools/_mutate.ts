@@ -387,3 +387,49 @@ export async function deleteRoutine(
 	await saveStore(runtime.store);
 	return { deletedId: routine.id, deletedName: routine.name };
 }
+
+// ─── Pause / resume ──────────────────────────────────────────────────────────
+
+export interface SetPausedSuccess {
+	id: string;
+	name: string;
+	paused: boolean;
+	/** True if the call actually changed the flag; false if it was already in target state. */
+	changed: boolean;
+}
+
+export type SetPausedResult = SetPausedSuccess | MutateError;
+
+/**
+ * Pause or resume a routine by id-or-name. Idempotent: pausing an already
+ * paused routine (or resuming a running one) is a no-op that returns
+ * `changed: false`.
+ *
+ * We keep the routine's timers armed even while paused, because:
+ *   - Re-arming on resume is cheap (it's how /reload works already).
+ *   - Pulse timers fire at most every 30 s, so the wake-up cost is trivial.
+ *   - It keeps the "paused" gate in exactly one place
+ *     ({@link scheduler.enqueueTriggerFire}) which also catches the hook /
+ *     api / github paths.
+ */
+export async function setPaused(
+	idOrName: string,
+	paused: boolean,
+	runtime: RoutineRuntimeState,
+): Promise<SetPausedResult> {
+	if (!idOrName) return { error: "Provide a routine id or name." };
+	const routine = resolveRoutine(idOrName, runtime);
+	if (!routine) {
+		return {
+			error: `No routine matched '${idOrName}'. Current routines: ${listRoutineNames(runtime)}.`,
+		};
+	}
+	const was = routine.paused === true;
+	if (was === paused) {
+		return { id: routine.id, name: routine.name, paused, changed: false };
+	}
+	if (paused) routine.paused = true;
+	else delete routine.paused;
+	await saveStore(runtime.store);
+	return { id: routine.id, name: routine.name, paused, changed: true };
+}

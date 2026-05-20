@@ -290,6 +290,14 @@ async function handleRequest(
 		return;
 	}
 
+	// 6b. Paused routines refuse api fires (HTTP 423 Locked). Resume with
+	// /routine-resume to re-enable.
+	if (routine.paused) {
+		res.writeHead(423, { "content-type": "application/json" });
+		res.end(JSON.stringify({ error: "routine is paused" }));
+		return;
+	}
+
 	// 7. Rate-limit.
 	if (isRateLimited(active, routine.id)) {
 		res.writeHead(429);

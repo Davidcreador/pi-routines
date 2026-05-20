@@ -215,6 +215,8 @@ function pickHookRoutines(
 ): Array<{ routine: Routine; trigger: HookTrigger; index: number }> {
 	const out: Array<{ routine: Routine; trigger: HookTrigger; index: number }> = [];
 	for (const routine of Object.values(runtime.store.routines)) {
+		// Paused routines never fire on hooks (matches the scheduler gate).
+		if (routine.paused) continue;
 		for (let i = 0; i < routine.triggers.length; i++) {
 			const trigger = routine.triggers[i];
 			if (trigger && trigger.kind === "hook" && trigger.event === event) {

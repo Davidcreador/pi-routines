@@ -253,3 +253,37 @@ describe("server — body & args", () => {
 		assert.equal(res.status, 400);
 	});
 });
+
+describe("server — paused routines", () => {
+	it("returns 423 Locked when the routine is paused", async () => {
+		const r = makeRoutine("r1");
+		r.paused = true;
+		runtime.store.routines[r.id] = r;
+		const token = await tokens.generateToken(r.id);
+		const res = await request({
+			pathname: "/routines/r1/trigger",
+			headers: { authorization: `Bearer ${token}` },
+		});
+		assert.equal(res.status, 423);
+		// And, importantly, no enqueue happened.
+		assert.equal(runtime.queue.length, 0);
+	});
+
+	it("returns 202 again after resume", async () => {
+		const r = makeRoutine("r1");
+		r.paused = true;
+		runtime.store.routines[r.id] = r;
+		const token = await tokens.generateToken(r.id);
+		let res = await request({
+			pathname: "/routines/r1/trigger",
+			headers: { authorization: `Bearer ${token}` },
+		});
+		assert.equal(res.status, 423);
+		delete r.paused;
+		res = await request({
+			pathname: "/routines/r1/trigger",
+			headers: { authorization: `Bearer ${token}` },
+		});
+		assert.equal(res.status, 202);
+	});
+});

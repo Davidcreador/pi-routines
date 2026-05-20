@@ -25,6 +25,10 @@ import { registerRoutineCommand } from "../src/commands/routine.ts";
 import { registerRoutineExportCronCommand } from "../src/commands/routine-export-cron.ts";
 import { registerRoutineInstallCommand } from "../src/commands/routine-install.ts";
 import { registerRoutineOnCommand } from "../src/commands/routine-on.ts";
+import {
+	registerRoutinePauseCommand,
+	registerRoutineResumeCommand,
+} from "../src/commands/routine-pause.ts";
 import { registerRoutineRunNowCommand } from "../src/commands/routine-run-now.ts";
 import { registerRoutineRunsCommand } from "../src/commands/routine-runs.ts";
 import { registerRoutineServerCommand } from "../src/commands/routine-server.ts";
@@ -99,6 +103,8 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	registerRoutineRunsCommand(pi, runtime);
 	registerRoutineServerCommand(pi, runtime, getCtx);
 	registerRoutineTokenCommand(pi, runtime);
+	registerRoutinePauseCommand(pi, runtime);
+	registerRoutineResumeCommand(pi, runtime);
 	registerScheduleCommand(pi);
 
 	// 3. Suppressor (message_end interceptor for `[~]`).
