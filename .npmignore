@@ -1,0 +1,13 @@
+# Belt-and-suspenders alongside package.json "files" allowlist.
+# Anything not in "files" is already excluded; this also covers edge cases.
+.pi/
+.pi-lens/
+.worktrees/
+tests/
+biome.json
+.gitignore
+.github/
+node_modules/
+pnpm-lock.yaml
+*.log
+.DS_Store

@@ -50,19 +50,21 @@ npm install -g @earendil-works/pi-coding-agent
 Then install this package:
 
 ```bash
+# From npm (recommended)
+pi install npm:@davecodes/pi-routines
+
+# Pinned version
+pi install npm:@davecodes/pi-routines@0.1.0
+
+# Or directly from GitHub
 pi install git:github.com/Davidcreador/pi-routines
-```
-
-Pin to a release tag:
-
-```bash
 pi install git:github.com/Davidcreador/pi-routines@v0.1.0
 ```
 
-Project-local install (writes to `.pi/git/` instead of `~/.pi/agent/git/`):
+Project-local install (writes to `.pi/npm/` or `.pi/git/` instead of `~/.pi/agent/`):
 
 ```bash
-pi install -l git:github.com/Davidcreador/pi-routines
+pi install -l npm:@davecodes/pi-routines
 ```
 
 Restart pi (or run `/reload`) — the extension auto-loads. You'll see new slash
@@ -75,10 +77,10 @@ showing active routine count.
 ### Manage the package
 
 ```bash
-pi list                                          # show installed packages
-pi update git:github.com/Davidcreador/pi-routines # update this package
-pi remove git:github.com/Davidcreador/pi-routines # uninstall
-pi config                                        # enable/disable extensions, skills
+pi list                                    # show installed packages
+pi update npm:@davecodes/pi-routines       # update this package
+pi remove npm:@davecodes/pi-routines       # uninstall
+pi config                                  # enable/disable extensions, skills
 ```
 
 ### Manual install (alternative — for development or pinned local paths)

@@ -1,7 +1,19 @@
 {
-  "name": "pi-routines",
+  "name": "@davecodes/pi-routines",
   "version": "0.1.0",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "extensions/",
+    "src/",
+    "skills/",
+    "templates/",
+    "tsconfig.json",
+    "README.md",
+    "LICENSE"
+  ],
   "description": "Pi extension for scheduled and event-driven routines",
   "keywords": ["pi", "pi-package", "pi-extension", "pi-coding-agent", "routines", "scheduler", "agent", "llm"],
   "license": "MIT",
@@ -32,7 +44,8 @@
     "format": "biome format --write .",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:smoke": "tsx src/parser.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm test"
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "prepublishOnly": "pnpm check"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
