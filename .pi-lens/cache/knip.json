@@ -3,6 +3,11 @@
   "issues": [
     {
       "type": "file",
+      "name": "extensions/index.ts",
+      "file": "extensions/index.ts"
+    },
+    {
+      "type": "file",
       "name": "src/executor.ts",
       "file": "src/executor.ts"
     },
@@ -10,6 +15,11 @@
       "type": "file",
       "name": "src/guard.ts",
       "file": "src/guard.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/hooks.ts",
+      "file": "src/hooks.ts"
     },
     {
       "type": "file",
@@ -118,6 +128,11 @@
   "unusedFiles": [
     {
       "type": "file",
+      "name": "extensions/index.ts",
+      "file": "extensions/index.ts"
+    },
+    {
+      "type": "file",
       "name": "src/executor.ts",
       "file": "src/executor.ts"
     },
@@ -125,6 +140,11 @@
       "type": "file",
       "name": "src/guard.ts",
       "file": "src/guard.ts"
+    },
+    {
+      "type": "file",
+      "name": "src/hooks.ts",
+      "file": "src/hooks.ts"
     },
     {
       "type": "file",
@@ -232,5 +252,5 @@
     }
   ],
   "unlistedDeps": [],
-  "summary": "Found 22 issues"
+  "summary": "Found 24 issues"
 }

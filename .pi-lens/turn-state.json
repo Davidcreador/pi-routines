@@ -1,87 +1,57 @@
 {
   "files": {
-    "taskplane-tasks/TP-007-slash-commands/STATUS.md": {
+    "taskplane-tasks/TP-006-hooks-entry/STATUS.md": {
       "modifiedRanges": [
         {
           "start": 1,
-          "end": 142
+          "end": 120
         }
       ],
       "importsChanged": false,
-      "lastEdit": "2026-05-20T00:54:43.978Z"
+      "lastEdit": "2026-05-20T01:06:20.834Z"
     },
-    "src/tools/_mutate.ts": {
+    "src/hooks.ts": {
       "modifiedRanges": [
         {
           "start": 1,
-          "end": 256
+          "end": 230
         }
       ],
       "importsChanged": true,
-      "lastEdit": "2026-05-20T00:54:44.071Z"
+      "lastEdit": "2026-05-20T01:06:20.925Z"
     },
-    "src/tools/routine-delete.ts": {
+    "extensions/index.ts": {
       "modifiedRanges": [
         {
           "start": 1,
-          "end": 92
+          "end": 135
         }
       ],
       "importsChanged": true,
-      "lastEdit": "2026-05-20T00:54:44.180Z"
-    },
-    "src/commands/routine.ts": {
-      "modifiedRanges": [
-        {
-          "start": 1,
-          "end": 130
-        }
-      ],
-      "importsChanged": true,
-      "lastEdit": "2026-05-20T00:54:44.236Z"
-    },
-    "src/commands/routine-on.ts": {
-      "modifiedRanges": [
-        {
-          "start": 1,
-          "end": 117
-        }
-      ],
-      "importsChanged": true,
-      "lastEdit": "2026-05-20T00:54:44.288Z"
-    },
-    "src/commands/routine-install.ts": {
-      "modifiedRanges": [
-        {
-          "start": 1,
-          "end": 178
-        }
-      ],
-      "importsChanged": true,
-      "lastEdit": "2026-05-20T00:54:44.450Z"
-    },
-    "src/commands/routine-export-cron.ts": {
-      "modifiedRanges": [
-        {
-          "start": 1,
-          "end": 167
-        }
-      ],
-      "importsChanged": true,
-      "lastEdit": "2026-05-20T00:54:44.505Z"
+      "lastEdit": "2026-05-20T01:06:20.987Z"
     },
     "taskplane-tasks/CONTEXT.md": {
       "modifiedRanges": [
         {
           "start": 1,
-          "end": 105
+          "end": 111
         }
       ],
       "importsChanged": false,
-      "lastEdit": "2026-05-20T00:54:44.622Z"
+      "lastEdit": "2026-05-20T01:06:21.109Z"
+    },
+    "README.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 93
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T01:06:21.226Z"
     }
   },
   "turnCycles": 0,
   "maxCycles": 3,
-  "lastUpdated": "2026-05-20T00:54:44.622Z"
+  "lastUpdated": "2026-05-20T01:06:21.226Z"
 }
