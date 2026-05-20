@@ -1,10 +1,9 @@
 /**
  * @file routine-create.ts — LLM-callable `RoutineCreate` tool.
  *
- * Registers a recurring (pulse) or event-driven (hook) routine. Validates
- * name, interval, agent_end uniqueness and the global 20-routine cap.
- * Upserts by name — calling with an existing name updates the routine
- * (preserving `id`, `createdAt`, `tickState`).
+ * Thin schema-validation wrapper around {@link createRoutine} in
+ * `_mutate.ts`. Upserts by name — calling with an existing name updates
+ * the routine in place (preserving `id`, `createdAt`, `tickState`).
  */
 
 import type {
@@ -13,20 +12,9 @@ import type {
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { nanoid } from "nanoid";
 import { Type, type Static } from "typebox";
-import { parseInterval } from "../parser.ts";
-import { scheduleRoutine, unscheduleRoutine } from "../scheduler.ts";
-import { saveStore } from "../store.ts";
-import type {
-	HookEvent,
-	Routine,
-	RoutineRuntimeState,
-	RoutineTrigger,
-} from "../types.ts";
-
-const NAME_RE = /^[a-z0-9-]{1,32}$/;
-const MAX_ROUTINES = 20;
+import type { RoutineRuntimeState } from "../types.ts";
+import { createRoutine } from "./_mutate.ts";
 
 const ParamsSchema = Type.Object({
 	name: Type.String({
@@ -86,11 +74,6 @@ function errorResult(message: string): AgentToolResult<Details | null> {
 	};
 }
 
-function describeTrigger(t: RoutineTrigger): string {
-	if (t.kind === "pulse") return `every ${t.intervalHuman}`;
-	return t.once ? `on ${t.event} (${t.once})` : `on ${t.event}`;
-}
-
 /**
  * Register the `RoutineCreate` tool.
  *
@@ -117,140 +100,38 @@ export function registerRoutineCreateTool(
 			_id,
 			params: Params,
 		): Promise<AgentToolResult<Details | null>> {
-			const { name, prompt, trigger, quiet, maxTicks } = params;
-
-			// 1. Name validation.
-			if (!NAME_RE.test(name)) {
-				return errorResult(
-					`Invalid name '${name}'. Use lowercase letters, digits, and hyphens (max 32 chars).`,
-				);
-			}
-
-			// 2. Resolve trigger; for pulse parse interval (may throw).
-			let resolvedTrigger: RoutineTrigger;
-			if (trigger.kind === "pulse") {
-				try {
-					const parsed = parseInterval(trigger.interval);
-					resolvedTrigger = {
-						kind: "pulse",
-						intervalMs: parsed.ms,
-						intervalHuman: parsed.human,
-					};
-				} catch (err) {
-					return errorResult((err as Error).message);
-				}
-			} else {
-				resolvedTrigger = {
-					kind: "hook",
-					event: trigger.event as HookEvent,
-					...(trigger.once ? { once: trigger.once } : {}),
-				};
-			}
-
-			// 3. Look up existing by name (case-sensitive — name regex is lowercase).
-			const existing = Object.values(runtime.store.routines).find(
-				(r) => r.name === name,
+			const result = await createRoutine(
+				{
+					name: params.name,
+					prompt: params.prompt,
+					trigger: params.trigger,
+					...(params.quiet !== undefined ? { quiet: params.quiet } : {}),
+					...(params.maxTicks !== undefined
+						? { maxTicks: params.maxTicks }
+						: {}),
+				},
+				runtime,
+				pi,
+				getCtx,
 			);
 
-			// 4. agent_end hook uniqueness check (excluding the one being updated).
-			if (
-				resolvedTrigger.kind === "hook" &&
-				resolvedTrigger.event === "agent_end"
-			) {
-				const conflict = Object.values(runtime.store.routines).find(
-					(r) =>
-						r.trigger.kind === "hook" &&
-						r.trigger.event === "agent_end" &&
-						r.id !== existing?.id,
-				);
-				if (conflict) {
-					return errorResult(
-						`Another routine ('${conflict.name}') already uses the agent_end hook. ` +
-							"Delete it first or pick a different event.",
-					);
-				}
-			}
+			if ("error" in result) return errorResult(result.error);
 
-			// 5. Global cap (only when creating new).
-			if (
-				!existing &&
-				Object.keys(runtime.store.routines).length >= MAX_ROUTINES
-			) {
-				return errorResult(
-					`Routine limit reached (${MAX_ROUTINES}). Delete an existing routine first.`,
-				);
-			}
-
-			// 6. Build or update routine.
-			let routine: Routine;
-			if (existing) {
-				// Update in place; preserve id/createdAt/tickState.
-				routine = {
-					...existing,
-					prompt,
-					trigger: resolvedTrigger,
-					quiet: quiet ?? existing.quiet ?? false,
-					...(maxTicks !== undefined
-						? { maxTicks }
-						: { maxTicks: existing.maxTicks }),
-				};
-				// If the pulse interval changed (or trigger kind changed), clear the
-				// old timer; we re-schedule below.
-				const old = existing.trigger;
-				const intervalChanged =
-					old.kind !== resolvedTrigger.kind ||
-					(old.kind === "pulse" &&
-						resolvedTrigger.kind === "pulse" &&
-						old.intervalMs !== resolvedTrigger.intervalMs);
-				if (intervalChanged) {
-					unscheduleRoutine(existing.id, runtime);
-				}
-			} else {
-				routine = {
-					id: nanoid(),
-					name,
-					prompt,
-					trigger: resolvedTrigger,
-					context: "session",
-					quiet: quiet ?? false,
-					...(maxTicks !== undefined ? { maxTicks } : {}),
-					createdAt: Date.now(),
-				};
-				runtime.store.tickState[routine.id] = {
-					tickCount: 0,
-					lastFiredAt: 0,
-					lastFiredDateLocal: "",
-					userState: {},
-				};
-			}
-
-			runtime.store.routines[routine.id] = routine;
-			await saveStore(runtime.store);
-
-			if (routine.trigger.kind === "pulse") {
-				scheduleRoutine(routine, runtime, pi, getCtx);
-			}
-
-			const triggerDescription = describeTrigger(routine.trigger);
 			const details: Details = {
-				id: routine.id,
-				name: routine.name,
-				triggerDescription,
+				id: result.id,
+				name: result.name,
+				triggerDescription: result.triggerDescription,
 			};
-			if (routine.trigger.kind === "pulse") {
-				details.nextFireIn = routine.trigger.intervalHuman;
-			}
+			if (result.nextFireIn) details.nextFireIn = result.nextFireIn;
 
-			const verb = existing ? "Updated" : "Created";
+			const verb = result.updated ? "Updated" : "Created";
+			const kind = params.trigger.kind;
 			const msg =
-				routine.trigger.kind === "pulse"
-					? `${verb} pulse routine '${routine.name}' — fires ${triggerDescription}. Next fire in ~${routine.trigger.intervalHuman}.`
-					: `${verb} hook routine '${routine.name}' — fires ${triggerDescription}.`;
+				kind === "pulse" && result.nextFireIn
+					? `${verb} pulse routine '${result.name}' — fires ${result.triggerDescription}. Next fire in ~${result.nextFireIn}.`
+					: `${verb} hook routine '${result.name}' — fires ${result.triggerDescription}.`;
 
-			return {
-				content: [{ type: "text", text: msg }],
-				details,
-			};
+			return { content: [{ type: "text", text: msg }], details };
 		},
 
 		renderCall(args) {

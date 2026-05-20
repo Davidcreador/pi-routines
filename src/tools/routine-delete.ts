@@ -1,9 +1,9 @@
 /**
  * @file routine-delete.ts — LLM-callable `RoutineDelete` tool.
  *
- * Removes a routine by id or (case-insensitive) name, unschedules any
- * pulse timer, and persists the store. Returns a helpful error listing
- * current routine names when the lookup fails so the LLM can self-correct.
+ * Thin schema-validation wrapper around {@link deleteRoutine} in
+ * `_mutate.ts`. Returns a helpful error listing current routine names
+ * when the lookup fails so the LLM can self-correct.
  */
 
 import type {
@@ -12,10 +12,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
-import { unscheduleRoutine } from "../scheduler.ts";
-import { saveStore } from "../store.ts";
 import type { RoutineRuntimeState } from "../types.ts";
-import { listRoutineNames, resolveRoutine } from "./_resolve.ts";
+import { deleteRoutine } from "./_mutate.ts";
 
 const ParamsSchema = Type.Object({
 	id: Type.Optional(Type.String({ description: "Routine id (nanoid)." })),
@@ -64,30 +62,16 @@ export function registerRoutineDeleteTool(
 			if (!id && !name) {
 				return errorResult("Provide either id or name.");
 			}
-
-			const routine = resolveRoutine(runtime.store, id, name);
-			if (!routine) {
-				return errorResult(
-					`No routine matched id='${id ?? ""}' name='${name ?? ""}'. ` +
-						`Current routines: ${listRoutineNames(runtime.store)}.`,
-				);
-			}
-
-			if (routine.trigger.kind === "pulse") {
-				unscheduleRoutine(routine.id, runtime);
-			}
-			delete runtime.store.routines[routine.id];
-			delete runtime.store.tickState[routine.id];
-			await saveStore(runtime.store);
-
+			const result = await deleteRoutine(id ?? name ?? "", runtime);
+			if ("error" in result) return errorResult(result.error);
 			return {
 				content: [
-					{
-						type: "text",
-						text: `Deleted routine '${routine.name}'.`,
-					},
+					{ type: "text", text: `Deleted routine '${result.deletedName}'.` },
 				],
-				details: { deletedId: routine.id, deletedName: routine.name },
+				details: {
+					deletedId: result.deletedId,
+					deletedName: result.deletedName,
+				},
 			};
 		},
 
