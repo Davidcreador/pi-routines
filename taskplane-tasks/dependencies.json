@@ -1,0 +1,8 @@
+{
+	"tasks": {
+		"TP-008": { "dependsOn": [] },
+		"TP-009": { "dependsOn": ["TP-008"] },
+		"TP-010": { "dependsOn": ["TP-008", "TP-009"] },
+		"TP-011": { "dependsOn": ["TP-008", "TP-009"] }
+	}
+}
