@@ -1,37 +1,67 @@
 {
   "files": {
-    "skills/routine/SKILL.md": {
+    "taskplane-tasks/TP-005-tools/STATUS.md": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 114
+        }
+      ],
+      "importsChanged": false,
+      "lastEdit": "2026-05-20T00:43:17.026Z"
+    },
+    "src/tools/routine-create.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 268
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:43:17.169Z"
+    },
+    "src/tools/routine-list.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 146
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:43:17.230Z"
+    },
+    "src/tools/routine-delete.ts": {
       "modifiedRanges": [
         {
           "start": 1,
           "end": 108
         }
       ],
-      "importsChanged": false,
-      "lastEdit": "2026-05-20T00:23:44.175Z"
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:43:17.282Z"
+    },
+    "src/tools/routine-set-state.ts": {
+      "modifiedRanges": [
+        {
+          "start": 1,
+          "end": 155
+        }
+      ],
+      "importsChanged": true,
+      "lastEdit": "2026-05-20T00:43:17.338Z"
     },
     "taskplane-tasks/CONTEXT.md": {
       "modifiedRanges": [
         {
           "start": 1,
-          "end": 94
+          "end": 99
         }
       ],
       "importsChanged": false,
-      "lastEdit": "2026-05-20T00:23:44.281Z"
-    },
-    "taskplane-tasks/TP-004-templates-skill/STATUS.md": {
-      "modifiedRanges": [
-        {
-          "start": 1,
-          "end": 97
-        }
-      ],
-      "importsChanged": false,
-      "lastEdit": "2026-05-20T00:23:44.390Z"
+      "lastEdit": "2026-05-20T00:43:17.450Z"
     }
   },
   "turnCycles": 0,
   "maxCycles": 3,
-  "lastUpdated": "2026-05-20T00:23:44.390Z"
+  "lastUpdated": "2026-05-20T00:43:17.450Z"
 }
