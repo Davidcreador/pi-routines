@@ -180,15 +180,22 @@ export async function fireRoutine(
 		// without interrupting). See Discoveries.
 		pi.sendUserMessage(prompt, { deliverAs: "followUp" });
 
+		// Bump runsToday only for AUTOMATIC fires. Manual fires bypass the
+		// daily cap on the pre-check (see above); they must not count toward
+		// it post-fire either, or repeated /routine-run-now would silently
+		// burn the day's budget for scheduled fires. The counter still rolls
+		// over at local midnight via the runsTodayDate compare.
 		const today = new Date().toLocaleDateString("en-CA");
 		const sameDay = tickState.runsTodayDate === today;
+		const carried = sameDay ? (tickState.runsToday ?? 0) : 0;
+		const nextRunsToday = origin.kind === "manual" ? carried : carried + 1;
 		const updated: RoutineTickState = {
 			tickCount: tickState.tickCount + 1,
 			lastFiredAt: Date.now(),
 			lastFiredDateLocal: today,
 			userState: tickState.userState ?? {},
 			runs: tickState.runs ?? [],
-			runsToday: (sameDay ? (tickState.runsToday ?? 0) : 0) + 1,
+			runsToday: nextRunsToday,
 			runsTodayDate: today,
 		};
 		store.tickState[routine.id] = updated;
@@ -215,16 +222,30 @@ export async function fireRoutine(
 
 /**
  * Push a {@link RoutineRun} into the routine's `tickState.runs` ring buffer,
- * trimming to {@link MAX_RUN_HISTORY}, then persist. Caller must already have
- * a `tickState` entry for the routine (created by `fireRoutine`).
+ * trimming to {@link MAX_RUN_HISTORY}, then persist.
+ *
+ * If the routine has no `tickState` entry yet (e.g. the very first fire
+ * errors out before the success-path write-through, or the cap-skip path
+ * fires before any successful run) we initialise a default entry rather
+ * than silently dropping the run record. Previously the function bailed
+ * out on missing tickState, which made first-time-ever errors and
+ * cap-skipped fires invisible in `/routine-runs`.
  */
 export function recordRun(
 	runtime: RoutineRuntimeState,
 	store: RoutineStore,
 	run: RoutineRun,
 ): void {
-	const ts = store.tickState[run.routineId];
-	if (!ts) return;
+	let ts = store.tickState[run.routineId];
+	if (!ts) {
+		ts = {
+			tickCount: 0,
+			lastFiredAt: 0,
+			lastFiredDateLocal: "",
+			userState: {},
+		};
+		store.tickState[run.routineId] = ts;
+	}
 	const runs = ts.runs ?? [];
 	runs.push(run);
 	while (runs.length > MAX_RUN_HISTORY) runs.shift();

@@ -151,3 +151,60 @@ describe("loadStore (filesystem)", () => {
 		assert.deepEqual(s.routines, {});
 	});
 });
+
+describe("saveStore — concurrent writes", () => {
+	it("10 concurrent saveStore calls all complete without ENOENT corruption", async () => {
+		// Before the unique-tmp-filename fix this race was real:
+		// two saveStore calls would share `${STATE_FILE}.tmp`, the first
+		// would rename it to the target, the second's rename would fail
+		// with ENOENT ("no such file or directory"). The fix gives each
+		// saveStore its own random tmp suffix.
+		await clearState();
+		await fs.mkdir(path.dirname(stateFile), { recursive: true });
+
+		const warnings: string[] = [];
+		const origWarn = console.warn;
+		console.warn = (...args: unknown[]) => warnings.push(args.map(String).join(" "));
+
+		try {
+			const stores = Array.from({ length: 10 }, (_, i) => {
+				const s = emptyStore();
+				// Distinct contents per call so we can identify the survivor.
+				s.routines[`r${i}`] = {
+					id: `r${i}`,
+					name: `r${i}`,
+					prompt: `p${i}`,
+					triggers: [],
+					context: "session",
+					quiet: false,
+					createdAt: 0,
+				};
+				return s;
+			});
+			await Promise.all(stores.map((s) => saveStore(s)));
+			// All settled with no warning means no rename/ENOENT race.
+			const enoent = warnings.filter((w) => w.includes("ENOENT") || w.includes("saveStore failed"));
+			assert.deepEqual(enoent, [], "no saveStore should fail under concurrent writes");
+		} finally {
+			console.warn = origWarn;
+		}
+
+		// File on disk must be valid JSON (one of the 10 inputs); last writer wins.
+		const written = JSON.parse(await fs.readFile(stateFile, "utf8"));
+		assert.equal(written.schemaVersion, SCHEMA_VERSION);
+		assert.ok(typeof written.routines === "object");
+	});
+
+	it("does not leave stray tmp files in the state directory after writes settle", async () => {
+		await clearState();
+		await fs.mkdir(path.dirname(stateFile), { recursive: true });
+		await Promise.all(Array.from({ length: 5 }, () => saveStore(emptyStore())));
+		const entries = await fs.readdir(path.dirname(stateFile));
+		const stray = entries.filter((e) => e.includes(".tmp."));
+		assert.deepEqual(
+			stray,
+			[],
+			`no .tmp.* files should remain after writes settle; got: ${stray.join(",")}`,
+		);
+	});
+});

@@ -9,13 +9,32 @@
  */
 
 import { strict as assert } from "node:assert";
-import { afterEach, beforeEach, describe, it, mock } from "node:test";
+import { promises as fs } from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { after, afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { enqueueTriggerFire, stopScheduler } from "../src/scheduler.ts";
-import { emptyStore } from "../src/store.ts";
-import { createRoutine, setPaused } from "../src/tools/_mutate.ts";
-import { registerRoutinePauseTool, registerRoutineResumeTool } from "../src/tools/routine-pause.ts";
+
+// Redirect HOME so createRoutine / setPaused write to a temp state.json
+// instead of the user's real ~/.pi state file.
+const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-pause-"));
+const origHome = process.env.HOME;
+process.env.HOME = tmpHome;
+
+const { enqueueTriggerFire, stopScheduler } = await import("../src/scheduler.ts");
+const { emptyStore } = await import("../src/store.ts");
+const { createRoutine, setPaused } = await import("../src/tools/_mutate.ts");
+const { registerRoutinePauseTool, registerRoutineResumeTool } = await import(
+	"../src/tools/routine-pause.ts"
+);
+
 import type { RoutineRuntimeState } from "../src/types.ts";
+
+after(async () => {
+	if (origHome === undefined) delete process.env.HOME;
+	else process.env.HOME = origHome;
+	await fs.rm(tmpHome, { recursive: true, force: true });
+});
 
 function makeRuntime(): RoutineRuntimeState {
 	return {
@@ -149,6 +168,32 @@ describe("pause / resume", () => {
 		if (!live) return;
 		enqueueTriggerFire(live, 0, rt, fakePi, getCtx);
 		assert.equal(rt.queue.length, 1);
+	});
+
+	it("deleteRoutine drops queued state + transient maps for the deleted routine", async () => {
+		const { deleteRoutine } = await import("../src/tools/_mutate.ts");
+		const rt = makeRuntime();
+		liveRuntimes.push(rt);
+		const created = await createRoutine(
+			{ name: "w", prompt: "x", trigger: { kind: "pulse", interval: "1m" } },
+			rt,
+			fakePi,
+			getCtx,
+		);
+		assert.ok(!("error" in created));
+		if ("error" in created) return;
+		// Simulate a pending api/github fire that the user deletes before it drains.
+		rt.queue.push(created.id);
+		rt.triggerOrigin.set(created.id, { index: 0, kind: "pulse" });
+		rt.apiArgs = new Map();
+		rt.apiArgs.set(created.id, { foo: "bar" });
+		rt.githubEvents = new Map();
+		rt.githubEvents.set(created.id, { number: 1 });
+		await deleteRoutine("w", rt);
+		assert.equal(rt.queue.includes(created.id), false);
+		assert.equal(rt.triggerOrigin.has(created.id), false);
+		assert.equal(rt.apiArgs?.has(created.id), false);
+		assert.equal(rt.githubEvents?.has(created.id), false);
 	});
 });
 

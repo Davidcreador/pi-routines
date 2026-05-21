@@ -49,6 +49,13 @@ export interface OneOffTrigger {
 	fireAtIso: string;
 	/** Optional IANA timezone (used when `fireAtIso` has no offset). */
 	timezone?: string;
+	/**
+	 * Set to `true` after the trigger fires (or whenever the scheduler
+	 * detects the timestamp is already in the past). Spent triggers are
+	 * silently skipped at re-arm — without this flag, `/reload` would log
+	 * a noisy `parseOneOff` error on every restart.
+	 */
+	fired?: boolean;
 }
 
 /** Lifecycle events a hook routine can subscribe to. */
