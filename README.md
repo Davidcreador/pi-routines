@@ -139,33 +139,33 @@ delete persisted state: `rm ~/.pi/agent/extensions/routines/state.json`.
 
 ### Create & manage
 
-| Command | Purpose |
-| --- | --- |
-| `/routine <interval> <prompt>` | Create a **pulse** routine. e.g. `/routine 10m check the build` |
-| `/routine-on <event> <prompt>` | Create a **hook** routine. Events: `session_start`, `agent_end`, `session_shutdown` |
+| Command                        | Purpose                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| `/routine <interval> <prompt>` | Create a **pulse** routine. e.g. `/routine 10m check the build`                      |
+| `/routine-on <event> <prompt>` | Create a **hook** routine. Events: `session_start`, `agent_end`, `session_shutdown`  |
 | `/schedule <natural language>` | LLM-powered routine creation. e.g. `/schedule weekdays at 9am summarize my open PRs` |
-| `/routines` | List active routines (id, name, triggers, last status) |
-| `/routine-install <template>` | Install a bundled template by name |
-| `/routine-stop <id\|name>` | Stop and delete a routine |
-| `/routine-export-cron` | Export routines as standalone prompt files + optional macOS launchd plists |
+| `/routines`                    | List active routines (id, name, triggers, last status)                               |
+| `/routine-install <template>`  | Install a bundled template by name                                                   |
+| `/routine-stop <id\|name>`     | Stop and delete a routine                                                            |
+| `/routine-export-cron`         | Export routines as standalone prompt files + optional macOS launchd plists           |
 
 ### Run control & history _(v0.2.0)_
 
-| Command | Purpose |
-| --- | --- |
-| `/routine-run-now <id\|name>` | Fire a routine immediately, bypassing schedule |
+| Command                                | Purpose                                                    |
+| -------------------------------------- | ---------------------------------------------------------- |
+| `/routine-run-now <id\|name>`          | Fire a routine immediately, bypassing schedule             |
 | `/routine-runs <id\|name> [--limit N]` | Show recent runs: time, trigger, status, duration, snippet |
 
 ### HTTP API server _(v0.2.0)_
 
-| Command | Purpose |
-| --- | --- |
-| `/routine-server start [port]` | Start local API server (default `7424`, `127.0.0.1` only, off by default) |
-| `/routine-server stop` | Stop the local API server |
-| `/routine-server status` | Show port, uptime, request count |
-| `/routine-token generate <id\|name>` | Generate a bearer token (shown once) |
-| `/routine-token rotate <id\|name>` | Rotate the bearer token |
-| `/routine-token show <id\|name>` | Show token preview (first 8 chars only) |
+| Command                              | Purpose                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------- |
+| `/routine-server start [port]`       | Start local API server (default `7424`, `127.0.0.1` only, off by default) |
+| `/routine-server stop`               | Stop the local API server                                                 |
+| `/routine-server status`             | Show port, uptime, request count                                          |
+| `/routine-token generate <id\|name>` | Generate a bearer token (shown once)                                      |
+| `/routine-token rotate <id\|name>`   | Rotate the bearer token                                                   |
+| `/routine-token show <id\|name>`     | Show token preview (first 8 chars only)                                   |
 
 ---
 
