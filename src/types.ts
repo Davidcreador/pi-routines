@@ -49,6 +49,13 @@ export interface OneOffTrigger {
 	fireAtIso: string;
 	/** Optional IANA timezone (used when `fireAtIso` has no offset). */
 	timezone?: string;
+	/**
+	 * Set to `true` after the trigger fires (or whenever the scheduler
+	 * detects the timestamp is already in the past). Spent triggers are
+	 * silently skipped at re-arm — without this flag, `/reload` would log
+	 * a noisy `parseOneOff` error on every restart.
+	 */
+	fired?: boolean;
 }
 
 /** Lifecycle events a hook routine can subscribe to. */
@@ -149,6 +156,22 @@ export interface Routine {
 	quiet: boolean;
 	/** Auto-delete after N fires. `undefined` = unlimited. */
 	maxTicks?: number;
+	/**
+	 * Soft per-day cap: once {@link RoutineTickState.runsToday} reaches this
+	 * value, further fires are skipped (recorded as `"skipped"` runs with
+	 * reason `"daily cap reached"`) until local midnight. `undefined` = no
+	 * cap. The cap is enforced inside {@link fireRoutine} before any LLM
+	 * turn is opened, so capped fires consume no provider tokens.
+	 */
+	maxRunsPerDay?: number;
+	/**
+	 * When `true`, the routine is suspended: timers stay armed for cheap
+	 * /reload behaviour, but `enqueueTriggerFire`, hook firing, and the
+	 * HTTP server all short-circuit and record a `"skipped"` run with
+	 * reason `"paused"`. Resume with `/routine-resume` or the upcoming
+	 * `RoutinePause`/`RoutineResume` tools.
+	 */
+	paused?: boolean;
 	/** Epoch millis of creation. */
 	createdAt: number;
 }
@@ -171,6 +194,15 @@ export interface RoutineTickState {
 	 * before TP-009 — readers treat missing/undefined as empty.
 	 */
 	runs?: RoutineRun[];
+	/**
+	 * Number of runs (success + silent + error) recorded today, used by
+	 * {@link Routine.maxRunsPerDay}. Resets to 0 when `runsTodayDate` no
+	 * longer matches the current local date. Optional for back-compat;
+	 * missing/undefined is treated as 0.
+	 */
+	runsToday?: number;
+	/** Local ISO date (`YYYY-MM-DD`) the {@link runsToday} counter applies to. */
+	runsTodayDate?: string;
 }
 
 /**
@@ -195,6 +227,11 @@ export interface RoutineRun {
 	durationMs: number;
 	/** Outcome classification. */
 	status: "success" | "error" | "skipped" | "silent";
+	/**
+	 * Optional reason for `"skipped"` runs (e.g. `"paused"`, `"daily cap reached"`,
+	 * `"once: daily already fired"`). Omitted for non-skipped statuses.
+	 */
+	skipReason?: string;
 	/** Index into `routine.triggers` that fired; `-1` for manual. */
 	triggerIndex: number;
 	/** Kind of trigger that fired (or `"manual"`). */
@@ -252,6 +289,13 @@ export interface RoutineRuntimeState {
 	 * the `{apiArgs}` template variable. Non-persisted.
 	 */
 	apiArgs?: Map<string, Record<string, unknown>>;
+	/**
+	 * Github event payload for in-flight github-triggered fires. Populated
+	 * by `github-poller.ts` before enqueue, consumed by
+	 * `executor.buildPrompt` via the `{githubEvent}` template variable.
+	 * Non-persisted; cleared on consume.
+	 */
+	githubEvents?: Map<string, Record<string, unknown>>;
 	pendingRun: {
 		routineId: string;
 		runId: string;
@@ -274,27 +318,45 @@ export interface ParsedInterval {
 
 // ─── Template definition (templates/*.json) ──────────────────────────────────
 
-/** JSON shape for a bundled routine template. */
+/**
+ * JSON shape for a bundled routine template. Supports the same union of
+ * triggers as {@link Routine.triggers}, plus a `triggers: [...]` array form
+ * for multi-trigger templates. Use the raw (pre-parse) field names that
+ * `_mutate.createRoutine` accepts (`interval`, `expr`, `fireAtIso`,
+ * `pollInterval`, etc.) — installer code passes them through unmodified.
+ */
 export interface RoutineTemplate {
 	/** Template id, e.g. "ci-watch". */
 	name: string;
 	/** One-line description shown in `/routine-template`. */
 	description: string;
-	trigger:
+	/**
+	 * Single trigger (back-compat with v0.1 templates). Either this OR
+	 * {@link triggers} (or both — they concatenate) must be present.
+	 */
+	trigger?:
+		| { kind: "pulse"; interval: string }
+		| { kind: "cron"; expr: string; timezone?: string }
+		| { kind: "oneoff"; fireAtIso: string; timezone?: string }
+		| { kind: "hook"; event: HookEvent; once?: "daily" | "per_session" }
+		| { kind: "api"; allowArgs?: boolean }
 		| {
-				kind: "pulse";
-				/** Human interval string, parsed at install time. */
-				interval: string;
-		  }
-		| {
-				kind: "hook";
-				event: HookEvent;
-				once?: "daily" | "per_session";
+				kind: "github";
+				repo: string;
+				event: "pull_request.opened" | "pull_request.closed" | "issues.opened" | "push";
+				pollInterval?: string;
+				filter?: { labels?: string[]; branches?: string[]; mergedOnly?: boolean };
 		  };
-	/** Prompt body. May contain `{cwd}`, `{date}`, `{time}` placeholders. */
+	/** Multi-trigger array form. Same union element as `trigger` above. */
+	triggers?: NonNullable<RoutineTemplate["trigger"]>[];
+	/**
+	 * Prompt body. May contain `{cwd}`, `{date}`, `{time}`, `{state}`,
+	 * `{tickCount}`, `{apiArgs}`, `{githubEvent}` placeholders.
+	 */
 	prompt: string;
 	quiet: boolean;
 	maxTicks?: number;
+	maxRunsPerDay?: number;
 	/** Tool names to check at install time (warns, does not block). */
 	requiredTools?: string[];
 }

@@ -1,0 +1,10 @@
+{
+  "name": "oneoff-reminder",
+  "description": "Fires once at the specified ISO-8601 timestamp, then self-disables",
+  "trigger": {
+    "kind": "oneoff",
+    "fireAtIso": "2099-12-31T09:00:00Z"
+  },
+  "prompt": "It's the time I asked you to remind me about ({date} {time}).\n\nThe original intent (edit this prompt before installing!): \"<insert reminder here>\".\n\nDo whatever follow-up makes sense given the project state — open a cleanup PR, scan the codebase for the flag I wanted removed, file a follow-up issue, or just summarise what's changed since I set this reminder.",
+  "quiet": false
+}

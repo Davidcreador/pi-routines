@@ -9,7 +9,8 @@
 import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import type { Routine, RoutineRuntimeState, RoutineTrigger } from "../types.ts";
+import { describeTriggers, relativeTime } from "../format.ts";
+import type { Routine, RoutineRuntimeState } from "../types.ts";
 
 interface RoutineRow {
 	id: string;
@@ -18,41 +19,13 @@ interface RoutineRow {
 	tickCount: number;
 	lastFiredAt: string;
 	quiet: boolean;
+	paused: boolean;
 	maxTicks?: number;
+	maxRunsPerDay?: number;
 }
 
 interface Details {
 	routines: RoutineRow[];
-}
-
-function describeTrigger(t: RoutineTrigger): string {
-	if (t.kind === "pulse") return `every ${t.intervalHuman}`;
-	if (t.kind === "cron") return `cron '${t.expr}'${t.timezone ? ` ${t.timezone}` : ""}`;
-	if (t.kind === "oneoff") return `at ${t.fireAtIso}`;
-	if (t.kind === "github") return `on github ${t.repo} ${t.event}`;
-	if (t.kind === "api") return t.allowArgs ? "api (allowArgs)" : "api";
-	return t.once ? `on ${t.event} (${t.once})` : `on ${t.event}`;
-}
-
-function describeTriggers(triggers: RoutineTrigger[]): string {
-	return triggers.map(describeTrigger).join(" + ");
-}
-
-/** Convert epoch millis to a coarse "N units ago" / "never" string. */
-function relativeTime(ms: number, now: number = Date.now()): string {
-	if (!ms || ms <= 0) return "never";
-	const diff = now - ms;
-	if (diff < 0) return "in the future";
-	const sec = Math.round(diff / 1000);
-	if (sec < 60) return `${sec}s ago`;
-	const min = Math.round(sec / 60);
-	if (min < 60) return `${min} minute${min === 1 ? "" : "s"} ago`;
-	const hr = Math.round(min / 60);
-	if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
-	const day = Math.round(hr / 24);
-	if (day === 1) return "yesterday";
-	if (day < 30) return `${day} days ago`;
-	return new Date(ms).toISOString().slice(0, 10);
 }
 
 /**
@@ -84,18 +57,33 @@ export function registerRoutineListTool(pi: ExtensionAPI, runtime: RoutineRuntim
 					tickCount: tick?.tickCount ?? 0,
 					lastFiredAt: relativeTime(tick?.lastFiredAt ?? 0),
 					quiet: r.quiet,
+					paused: r.paused === true,
 					...(r.maxTicks !== undefined ? { maxTicks: r.maxTicks } : {}),
+					...(r.maxRunsPerDay !== undefined ? { maxRunsPerDay: r.maxRunsPerDay } : {}),
 				};
 			});
+
+			const flagsCell = (r: RoutineRow): string => {
+				const flags = [
+					r.paused ? "paused" : "",
+					r.quiet ? "quiet" : "",
+					r.maxTicks !== undefined ? `max=${r.maxTicks}` : "",
+					r.maxRunsPerDay !== undefined ? `day=${r.maxRunsPerDay}` : "",
+				]
+					.filter(Boolean)
+					.join(" ");
+				return flags;
+			};
 
 			const text =
 				rows.length === 0
 					? "No routines active."
 					: rows
-							.map(
-								(r) =>
-									`${r.name} — ${r.triggerDescription} — ticks ${r.tickCount} — last ${r.lastFiredAt}${r.quiet ? " — quiet" : ""}${r.maxTicks !== undefined ? ` — max ${r.maxTicks}` : ""}`,
-							)
+							.map((r) => {
+								const flags = flagsCell(r);
+								const flagSuffix = flags ? ` — ${flags}` : "";
+								return `${r.name} — ${r.triggerDescription} — ticks ${r.tickCount} — last ${r.lastFiredAt}${flagSuffix}`;
+							})
 							.join("\n");
 
 			return {
@@ -120,7 +108,12 @@ export function registerRoutineListTool(pi: ExtensionAPI, runtime: RoutineRuntim
 				r.triggerDescription,
 				String(r.tickCount),
 				r.lastFiredAt,
-				[r.quiet ? "quiet" : "", r.maxTicks !== undefined ? `max=${r.maxTicks}` : ""]
+				[
+					r.paused ? "paused" : "",
+					r.quiet ? "quiet" : "",
+					r.maxTicks !== undefined ? `max=${r.maxTicks}` : "",
+					r.maxRunsPerDay !== undefined ? `day=${r.maxRunsPerDay}` : "",
+				]
 					.filter(Boolean)
 					.join(" "),
 			]);

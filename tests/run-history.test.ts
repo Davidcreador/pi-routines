@@ -9,11 +9,28 @@
  */
 
 import { strict as assert } from "node:assert";
-import { describe, it } from "node:test";
-import { recordRun, truncateSnippet } from "../src/executor.ts";
-import { emptyStore } from "../src/store.ts";
+import { promises as fs } from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { after, describe, it } from "node:test";
+
+// Redirect HOME so recordRun's fire-and-forget saveStore doesn't trample
+// the user's real ~/.pi state file.
+const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-run-history-"));
+const origHome = process.env.HOME;
+process.env.HOME = tmpHome;
+
+const { recordRun, truncateSnippet } = await import("../src/executor.ts");
+const { emptyStore } = await import("../src/store.ts");
+
 import type { Routine, RoutineRun, RoutineRuntimeState } from "../src/types.ts";
 import { MAX_RUN_HISTORY } from "../src/types.ts";
+
+after(async () => {
+	if (origHome === undefined) delete process.env.HOME;
+	else process.env.HOME = origHome;
+	await fs.rm(tmpHome, { recursive: true, force: true });
+});
 
 function makeRuntime(): RoutineRuntimeState {
 	return {
@@ -110,11 +127,25 @@ describe("run-history: ring buffer", () => {
 		assert.equal(last?.triggerIndex, -1);
 	});
 
-	it("ignores records for unknown routines (no tickState entry)", () => {
+	it("initialises a tickState entry on first record (covers cap-skip / first-error)", () => {
 		const rt = makeRuntime();
-		// no seedRoutine
-		recordRun(rt, rt.store, makeRun("ghost", 1));
-		assert.equal(rt.store.tickState.ghost, undefined);
+		// No seedRoutine — recordRun should create the tickState entry itself
+		// so the first-ever skip/error of a routine isn't silently lost.
+		recordRun(
+			rt,
+			rt.store,
+			makeRun("first-ever", 1, { status: "skipped", skipReason: "daily cap reached" }),
+		);
+		const ts = rt.store.tickState["first-ever"];
+		assert.ok(ts, "tickState entry should have been created");
+		assert.equal(ts?.runs?.length, 1);
+		assert.equal(ts?.runs?.[0]?.status, "skipped");
+		assert.equal(ts?.runs?.[0]?.skipReason, "daily cap reached");
+		// The synthetic tickState should be the default shape so subsequent
+		// success-path writes don't see stale data.
+		assert.equal(ts?.tickCount, 0);
+		assert.equal(ts?.lastFiredAt, 0);
+		assert.deepEqual(ts?.userState, {});
 	});
 });
 

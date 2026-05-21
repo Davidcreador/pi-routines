@@ -1,0 +1,8 @@
+{
+  "name": "morning-cron",
+  "description": "Cron-scheduled morning summary at 9am on weekdays",
+  "trigger": { "kind": "cron", "expr": "0 9 * * 1-5" },
+  "prompt": "It's {time} on {date} ({tickCount}-th run). Give me a focused weekday morning briefing:\n1. Run `git log --oneline --since='24 hours ago' --author=$(git config user.email) 2>/dev/null | head -20` and summarize what I worked on yesterday.\n2. Scan for todo.md / TASKS.md / NOTES.md in the current directory and surface anything urgent or in-progress.\n3. Three bullets: what shipped, what's in flight, suggested first task today.\nBe concise. If git log is empty, say so briefly.",
+  "quiet": false,
+  "maxRunsPerDay": 1
+}

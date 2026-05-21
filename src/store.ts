@@ -13,6 +13,7 @@
  *   the authoritative source.
  */
 
+import { randomBytes } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { dirname } from "node:path";
 import type { RoutineStore, RoutineTrigger } from "./types.ts";
@@ -113,19 +114,28 @@ export async function loadStore(): Promise<RoutineStore> {
  *
  * Sequence:
  *   1. mkdir -p on the parent directory.
- *   2. Write JSON to `${STATE_FILE}.tmp`.
- *   3. `fs.rename` → final path (atomic on POSIX).
- *   4. Copy final → `${STATE_FILE}.bak` for disaster recovery.
+ *   2. Serialize the store (under the same try block, so a JSON error doesn't
+ *      become an unhandled promise rejection from fire-and-forget callers).
+ *   3. Write JSON to a UNIQUE per-call `.tmp.<rand>` file. Unique names are
+ *      load-bearing — multiple call sites do `void saveStore(...)`
+ *      (recordRun, the oneoff fired-flag callback, etc.), and with a single
+ *      shared tmp filename two concurrent writers either interleave bytes
+ *      into the same file or trip ENOENT when one rename consumes the
+ *      inode the other expected.
+ *   4. `fs.rename` → final path (atomic on POSIX). Concurrent renames to
+ *      the same target are still "last writer wins" — semantically the
+ *      same as in-memory: the latest snapshot is what persists.
+ *   5. Copy final → `${STATE_FILE}.bak` for disaster recovery.
  *
  * Any I/O error (disk full, EACCES, etc.) is caught and logged. The caller's
  * in-memory state remains the source of truth.
  */
 export async function saveStore(store: RoutineStore): Promise<void> {
-	const data = JSON.stringify(store, null, 2);
-	const tmp = `${STATE_FILE}.tmp`;
+	const tmp = `${STATE_FILE}.tmp.${randomBytes(4).toString("hex")}`;
 	const bak = `${STATE_FILE}.bak`;
 
 	try {
+		const data = JSON.stringify(store, null, 2);
 		await fs.mkdir(dirname(STATE_FILE), { recursive: true });
 		await fs.writeFile(tmp, data, "utf8");
 		await fs.rename(tmp, STATE_FILE);
@@ -138,7 +148,8 @@ export async function saveStore(store: RoutineStore): Promise<void> {
 		console.warn(
 			`[pi-routines] saveStore failed (${(err as NodeJS.ErrnoException).code ?? "unknown"}): ${(err as Error).message}`,
 		);
-		// Best-effort cleanup of stale tmp file.
+		// Best-effort cleanup of our own tmp file. Other concurrent
+		// writers have their own tmp filenames so they're not affected.
 		try {
 			await fs.unlink(tmp);
 		} catch {

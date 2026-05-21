@@ -30,12 +30,25 @@ export interface ScheduleNLInputs {
 const TOOL_SURFACE = `
 RoutineCreate parameters (TypeBox schema, summarised):
   name:    string — lowercase letters/digits/hyphens, max 32 chars.
-  prompt:  string — what to ask Pi when the routine fires.
-  trigger: one of:
-            { kind: "pulse", interval: "5m" | "1h" | "1h30m" | ... }
-            { kind: "hook",  event: "session_start"|"agent_end"|"session_shutdown", once?: "daily"|"per_session" }
-  quiet:    optional boolean — suppress [~] in chat.
-  maxTicks: optional integer ≥1 — auto-delete after N fires.
+  prompt:  string — what to ask Pi when the routine fires. May reference:
+            {cwd}, {date}, {time}, {state}, {tickCount},
+            {apiArgs}      (only meaningful when an "api" trigger is attached),
+            {githubEvent}  (only meaningful when a "github" trigger is attached)
+  trigger: one of (pass exactly one):
+            { kind: "pulse",  interval: "5m" | "1h" | "1h30m" | ... }
+            { kind: "cron",   expr: "0 9 * * 1-5", timezone?: "America/Los_Angeles" }
+            { kind: "oneoff", fireAtIso: "2026-06-01T17:00:00Z", timezone?: "..." }
+            { kind: "hook",   event: "session_start"|"agent_end"|"session_shutdown",
+                              once?: "daily"|"per_session" }
+            { kind: "api",    allowArgs?: boolean }
+            { kind: "github", repo: "owner/name",
+                              event: "pull_request.opened"|"pull_request.closed"|"issues.opened"|"push",
+                              pollInterval?: "2m" | "5m",
+                              filter?: { labels?: string[], branches?: string[], mergedOnly?: boolean } }
+  triggers: optional — array form of the same union for multi-trigger routines (max 4).
+  quiet:         optional boolean — suppress [~] in chat.
+  maxTicks:      optional integer ≥1 — auto-delete after N fires.
+  maxRunsPerDay: optional integer ≥1 — soft cap; runs above the cap are recorded as 'skipped'.
 `.trim();
 
 /**
@@ -67,11 +80,20 @@ export function buildSchedulePrompt(inputs: ScheduleNLInputs): string {
 		`Pick a short kebab-case name derived from the request.`,
 		`Translate the user's timing into the closest matching trigger:`,
 		`  - "every N minutes/hours" → pulse with that interval.`,
-		`  - "daily at 9am", "every weekday at 9am" → pulse with the closest`,
-		`    sensible interval (e.g. 24h). Note: cron triggers are out of scope`,
-		`    for this command; prefer pulse + a prompt that handles the day-of-week check.`,
-		`  - "on session start" / "when the session ends" → hook with the`,
-		`    matching event and once: "daily" if the user wants once-per-day.`,
+		`  - "daily at 9am", "every weekday at 9am", "first of the month",`,
+		`    or any other clock-aligned cadence → cron with the matching expression`,
+		`    (e.g. "0 9 * * *" for daily 9am, "0 9 * * 1-5" for weekdays 9am).`,
+		`    Pass the user's local timezone if known, otherwise omit it.`,
+		`  - "tomorrow at 9am", "in 2 weeks", "next Friday" → oneoff with the`,
+		`    resolved absolute timestamp in ISO-8601 form. Use the user's local zone.`,
+		`  - "on session start" / "when the session ends" → hook with the matching`,
+		`    event and once: "daily" if the user wants once-per-day.`,
+		`  - "when my CI calls a webhook", "trigger from my deploy script" → api`,
+		`    (the user must run /routine-server start and generate a token afterwards).`,
+		`  - "when a PR opens on owner/repo", "react to issues on github" → github`,
+		`    with the appropriate event and an optional filter block.`,
+		`Multi-trigger routines: pass a "triggers" array (max 4). Example use case:`,
+		`a routine that polls every 10m AND can be fired on demand via API.`,
 		`If the request is ambiguous, ask one clarifying question instead of guessing.`,
 		``,
 		TOOL_SURFACE,

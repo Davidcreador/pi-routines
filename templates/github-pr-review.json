@@ -1,0 +1,13 @@
+{
+  "name": "github-pr-review",
+  "description": "Polls a GitHub repo for newly opened PRs and proposes review notes",
+  "trigger": {
+    "kind": "github",
+    "repo": "owner/name",
+    "event": "pull_request.opened",
+    "pollInterval": "5m"
+  },
+  "prompt": "A pull request was just opened. The payload is:\n\n{githubEvent}\n\nWalk through it as a thoughtful first-pass reviewer:\n1. Summarize the change in 1–2 sentences (what + why, inferred from the title, body, and changed files).\n2. Note any security, performance, or correctness risks based on the diff scope.\n3. List concrete review questions worth asking the author before merge.\n4. Suggest a recommendation: ready-for-detailed-review, needs-clarification, or blocking-concerns.\n\nKeep it under ~200 words. Edit the `repo` field of this template before installing — it ships pointing at `owner/name`.",
+  "quiet": false,
+  "requiredTools": ["gh"]
+}

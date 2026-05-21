@@ -25,6 +25,10 @@ import { registerRoutineCommand } from "../src/commands/routine.ts";
 import { registerRoutineExportCronCommand } from "../src/commands/routine-export-cron.ts";
 import { registerRoutineInstallCommand } from "../src/commands/routine-install.ts";
 import { registerRoutineOnCommand } from "../src/commands/routine-on.ts";
+import {
+	registerRoutinePauseCommand,
+	registerRoutineResumeCommand,
+} from "../src/commands/routine-pause.ts";
 import { registerRoutineRunNowCommand } from "../src/commands/routine-run-now.ts";
 import { registerRoutineRunsCommand } from "../src/commands/routine-runs.ts";
 import { registerRoutineServerCommand } from "../src/commands/routine-server.ts";
@@ -40,6 +44,7 @@ import { registerSuppressor } from "../src/suppressor.ts";
 import { registerRoutineCreateTool } from "../src/tools/routine-create.ts";
 import { registerRoutineDeleteTool } from "../src/tools/routine-delete.ts";
 import { registerRoutineListTool } from "../src/tools/routine-list.ts";
+import { registerRoutinePauseTool, registerRoutineResumeTool } from "../src/tools/routine-pause.ts";
 import { registerRoutineSetStateTool } from "../src/tools/routine-set-state.ts";
 import type { RoutineRuntimeState } from "../src/types.ts";
 import { clearWidget, startWidgetRefresh } from "../src/widget.ts";
@@ -87,6 +92,8 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	registerRoutineListTool(pi, runtime);
 	registerRoutineDeleteTool(pi, runtime);
 	registerRoutineSetStateTool(pi, runtime);
+	registerRoutinePauseTool(pi, runtime);
+	registerRoutineResumeTool(pi, runtime);
 
 	// 2. Slash commands.
 	registerRoutineCommand(pi, runtime, getCtx);
@@ -99,6 +106,8 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	registerRoutineRunsCommand(pi, runtime);
 	registerRoutineServerCommand(pi, runtime, getCtx);
 	registerRoutineTokenCommand(pi, runtime);
+	registerRoutinePauseCommand(pi, runtime);
+	registerRoutineResumeCommand(pi, runtime);
 	registerScheduleCommand(pi);
 
 	// 3. Suppressor (message_end interceptor for `[~]`).

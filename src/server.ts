@@ -22,7 +22,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { nanoid } from "nanoid";
 import { drainQueue } from "./scheduler.ts";
 import { verifyToken } from "./tokens.ts";
-import type { ApiTrigger, Routine, RoutineRuntimeState } from "./types.ts";
+import { resolveRoutine } from "./tools/_resolve.ts";
+import type { ApiTrigger, RoutineRuntimeState } from "./types.ts";
 import { MAX_QUEUE_DEPTH, MULTI_TRIGGER_COLLAPSE_MS } from "./types.ts";
 
 /** Default port if none supplied. */
@@ -261,7 +262,7 @@ async function handleRequest(
 		res.end();
 		return;
 	}
-	const routine = resolveById(runtime, routineId);
+	const routine = resolveRoutine(runtime.store, routineId);
 	if (!routine) {
 		// Don't leak existence info — verify against a placeholder so timing
 		// is comparable to an unknown-id case is not strictly needed here:
@@ -286,6 +287,14 @@ async function handleRequest(
 	if (!apiTrigger) {
 		res.writeHead(404);
 		res.end();
+		return;
+	}
+
+	// 6b. Paused routines refuse api fires (HTTP 423 Locked). Resume with
+	// /routine-resume to re-enable.
+	if (routine.paused) {
+		res.writeHead(423, { "content-type": "application/json" });
+		res.end(JSON.stringify({ error: "routine is paused" }));
 		return;
 	}
 
@@ -354,14 +363,4 @@ async function handleRequest(
 
 	res.writeHead(202, { "content-type": "application/json" });
 	res.end(JSON.stringify({ runId }));
-}
-
-function resolveById(runtime: RoutineRuntimeState, idOrName: string): Routine | null {
-	const direct = runtime.store.routines[idOrName];
-	if (direct) return direct;
-	const lower = idOrName.toLowerCase();
-	for (const r of Object.values(runtime.store.routines)) {
-		if (r.name.toLowerCase() === lower) return r;
-	}
-	return null;
 }
