@@ -9,13 +9,32 @@
  */
 
 import { strict as assert } from "node:assert";
-import { afterEach, beforeEach, describe, it, mock } from "node:test";
+import { promises as fs } from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { after, afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { enqueueTriggerFire, stopScheduler } from "../src/scheduler.ts";
-import { emptyStore } from "../src/store.ts";
-import { createRoutine, setPaused } from "../src/tools/_mutate.ts";
-import { registerRoutinePauseTool, registerRoutineResumeTool } from "../src/tools/routine-pause.ts";
+
+// Redirect HOME so createRoutine / setPaused write to a temp state.json
+// instead of the user's real ~/.pi state file.
+const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-pause-"));
+const origHome = process.env.HOME;
+process.env.HOME = tmpHome;
+
+const { enqueueTriggerFire, stopScheduler } = await import("../src/scheduler.ts");
+const { emptyStore } = await import("../src/store.ts");
+const { createRoutine, setPaused } = await import("../src/tools/_mutate.ts");
+const { registerRoutinePauseTool, registerRoutineResumeTool } = await import(
+	"../src/tools/routine-pause.ts"
+);
+
 import type { RoutineRuntimeState } from "../src/types.ts";
+
+after(async () => {
+	if (origHome === undefined) delete process.env.HOME;
+	else process.env.HOME = origHome;
+	await fs.rm(tmpHome, { recursive: true, force: true });
+});
 
 function makeRuntime(): RoutineRuntimeState {
 	return {
