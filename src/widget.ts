@@ -79,6 +79,24 @@ export function startWidgetRefresh(
 	};
 }
 
+/** Restart the periodic refresh loop to match the current store contents. */
+export function restartWidgetRefresh(
+	runtime: RoutineRuntimeState,
+	getCtx: () => ExtensionContext | null,
+	intervalMs: number = DEFAULT_REFRESH_MS,
+): void {
+	stopWidgetRefresh(runtime);
+	runtime.stopWidgetRefresh = startWidgetRefresh(runtime, getCtx, intervalMs);
+}
+
+/** Stop the periodic refresh loop, if one is active. */
+export function stopWidgetRefresh(runtime: RoutineRuntimeState): void {
+	if (!runtime.stopWidgetRefresh) return;
+	const stop = runtime.stopWidgetRefresh;
+	runtime.stopWidgetRefresh = undefined;
+	stop();
+}
+
 // ─── internals ───────────────────────────────────────────────────────────────
 
 function formatStatus(routines: Routine[], runtime: RoutineRuntimeState): string {

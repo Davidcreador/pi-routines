@@ -231,9 +231,7 @@ export function enqueueTriggerFire(
 	if (runtime.queue.includes(routine.id)) return;
 
 	if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-		const oldestIdx = runtime.queue.indexOf(routine.id);
-		if (oldestIdx >= 0) runtime.queue.splice(oldestIdx, 1);
-		else runtime.queue.shift();
+		runtime.queue.shift();
 	}
 
 	const trigger = routine.triggers[triggerIndex];

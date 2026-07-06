@@ -32,7 +32,7 @@ import * as guard from "./guard.ts";
 import { drainQueue, scheduleRoutine, stopScheduler } from "./scheduler.ts";
 import { loadStore, saveStore } from "./store.ts";
 import type { HookTrigger, Routine, RoutineRuntimeState } from "./types.ts";
-import { clearWidget, updateWidget } from "./widget.ts";
+import { clearWidget, restartWidgetRefresh, stopWidgetRefresh, updateWidget } from "./widget.ts";
 
 /**
  * Register the three lifecycle handlers (`session_start`, `agent_end`,
@@ -55,12 +55,19 @@ export function registerHooks(
 
 		// Reset guard state — a fresh session never inherits in-flight flags.
 		guard.releaseRoutineTurn(runtime);
+		if (event.reason !== "reload") {
+			guard.resetSessionHookFires(runtime);
+		}
 
 		// Reload the persisted store. tickState is preserved across reload
 		// but in-memory `timers`/`queue` are wiped on each load.
 		runtime.store = await loadStore();
 		runtime.timers.clear();
 		runtime.queue.length = 0;
+		runtime.triggerOrigin.clear();
+		runtime.apiArgs?.clear();
+		runtime.githubEvents?.clear();
+		runtime.pendingRun = null;
 
 		// Print mode: register-only path. No timers, no widget, no hook fires.
 		if (!ctx.hasUI) return;
@@ -69,23 +76,22 @@ export function registerHooks(
 		for (const routine of Object.values(runtime.store.routines)) {
 			scheduleRoutine(routine, runtime, pi, getCtx);
 		}
+		restartWidgetRefresh(runtime, getCtx);
 
-		// Fire applicable session_start hook routines (sequentially).
+		// Queue applicable session_start hook routines. They drain through the
+		// normal FIFO path so multiple hooks do not fight the active-turn guard.
 		const isReload = event.reason === "reload";
 		for (const { routine, trigger, index } of pickHookRoutines(runtime, "session_start")) {
 			// On reload, suppress per_session hooks — the session continues.
 			if (isReload && trigger.once === "per_session") {
 				continue;
 			}
-			if (!guard.shouldFireHook(trigger, runtime.store.tickState[routine.id])) {
-				continue;
-			}
-			try {
-				runtime.triggerOrigin.set(routine.id, { index, kind: "hook" });
-				await fireRoutine(routine, runtime, runtime.store, pi, ctx);
-			} catch (err) {
-				console.error(`[pi-routines] session_start hook '${routine.name}' failed:`, err);
-			}
+			enqueueHookFire(runtime, routine, trigger, index);
+		}
+		try {
+			await drainQueue(runtime, pi, getCtx);
+		} catch (err) {
+			console.error(`[pi-routines] session_start hook drain failed:`, err);
 		}
 
 		updateWidget(runtime, ctx);
@@ -129,17 +135,10 @@ export function registerHooks(
 		// Fire AT MOST ONE agent_end hook — but ONLY on user-driven turns.
 		// Routine-driven turns must never chain into another routine to avoid
 		// runaway feedback loops.
-		if (!wasRoutineTurn && ctx.hasUI) {
+		if (!wasRoutineTurn && ctx.hasUI && !guard.isRoutineTurnActive(runtime)) {
 			for (const { routine, trigger, index } of pickHookRoutines(runtime, "agent_end")) {
-				if (!guard.shouldFireHook(trigger, runtime.store.tickState[routine.id])) {
-					continue;
-				}
-				try {
-					runtime.triggerOrigin.set(routine.id, { index, kind: "hook" });
-					await fireRoutine(routine, runtime, runtime.store, pi, ctx);
-				} catch (err) {
-					console.error(`[pi-routines] agent_end hook '${routine.name}' failed:`, err);
-				}
+				if (!enqueueHookFire(runtime, routine, trigger, index)) continue;
+				await drainHookQueue(runtime, pi, getCtx, "agent_end");
 				break; // hard cap: one per turn
 			}
 		}
@@ -153,6 +152,7 @@ export function registerHooks(
 		// Tear down timers + queue first so a shutdown hook that schedules
 		// new pulses cannot leak intervals past the runtime.
 		stopScheduler(runtime);
+		stopWidgetRefresh(runtime);
 
 		// Fire shutdown hooks ONLY on real quit and only when no routine
 		// turn is currently active. On `reload`, the extension is being
@@ -162,7 +162,7 @@ export function registerHooks(
 			event.reason === "quit" && !guard.isRoutineTurnActive(runtime) && ctx !== null;
 		if (shouldFireShutdown) {
 			for (const { routine, trigger, index } of pickHookRoutines(runtime, "session_shutdown")) {
-				if (!guard.shouldFireHook(trigger, runtime.store.tickState[routine.id])) {
+				if (!prepareHookFire(runtime, routine, trigger, index)) {
 					continue;
 				}
 				try {
@@ -171,6 +171,7 @@ export function registerHooks(
 				} catch (err) {
 					console.error(`[pi-routines] session_shutdown hook '${routine.name}' failed:`, err);
 				}
+				if (guard.isRoutineTurnActive(runtime)) break;
 			}
 		}
 
@@ -185,6 +186,9 @@ export function registerHooks(
 
 		// Final reset — defensive; the runtime is about to be discarded.
 		guard.releaseRoutineTurn(runtime);
+		if (event.reason === "quit") {
+			guard.resetSessionHookFires(runtime);
+		}
 	});
 }
 
@@ -226,4 +230,46 @@ function pickHookRoutines(
 		}
 	}
 	return out;
+}
+
+function prepareHookFire(
+	runtime: RoutineRuntimeState,
+	routine: Routine,
+	trigger: HookTrigger,
+	index: number,
+): boolean {
+	const key = guard.hookFireKey(routine.id, trigger.event, index);
+	if (!guard.shouldFireHook(trigger, runtime.store.tickState[routine.id], runtime, key)) {
+		return false;
+	}
+	if (trigger.once === "per_session") {
+		guard.markSessionHookFired(runtime, key);
+	}
+	return true;
+}
+
+function enqueueHookFire(
+	runtime: RoutineRuntimeState,
+	routine: Routine,
+	trigger: HookTrigger,
+	index: number,
+): boolean {
+	if (runtime.queue.includes(routine.id)) return false;
+	if (!prepareHookFire(runtime, routine, trigger, index)) return false;
+	runtime.triggerOrigin.set(routine.id, { index, kind: "hook" });
+	runtime.queue.push(routine.id);
+	return true;
+}
+
+async function drainHookQueue(
+	runtime: RoutineRuntimeState,
+	pi: ExtensionAPI,
+	getCtx: () => ExtensionContext | null,
+	event: HookTrigger["event"],
+): Promise<void> {
+	try {
+		await drainQueue(runtime, pi, getCtx);
+	} catch (err) {
+		console.error(`[pi-routines] ${event} hook drain failed:`, err);
+	}
 }

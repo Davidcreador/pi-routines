@@ -35,6 +35,7 @@ import type {
 	RoutineTrigger,
 } from "../types.ts";
 import { DEFAULT_GITHUB_POLL_MS, MIN_GITHUB_POLL_MS } from "../types.ts";
+import { restartWidgetRefresh } from "../widget.ts";
 import {
 	listRoutineNames as listRoutineNamesFromStore,
 	resolveRoutine as resolveFromStore,
@@ -348,6 +349,7 @@ export async function createRoutine(
 	await saveStore(runtime.store);
 
 	scheduleRoutine(routine, runtime, pi, getCtx);
+	restartWidgetRefresh(runtime, getCtx);
 
 	// Pick the "primary" trigger (first time-based one) for the convenience
 	// `nextFireIn` field. Hook-only routines omit it.

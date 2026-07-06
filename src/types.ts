@@ -272,6 +272,16 @@ export interface RoutineRuntimeState {
 	/** Most recently seen ExtensionContext, for use when firing outside an event. */
 	lastUiCtx: ExtensionContext | null;
 	/**
+	 * Per-session hook fire keys for `once: "per_session"`. This is intentionally
+	 * in-memory: persisted tick counts span sessions and cannot model this guard.
+	 */
+	sessionHookFires?: Set<string>;
+	/**
+	 * Stop handle for the widget's periodic refresh loop. Owned by widget.ts
+	 * but stored here so hooks and mutations can restart it after store changes.
+	 */
+	stopWidgetRefresh?: () => void;
+	/**
 	 * Trigger origin for the next/current enqueue per routine id. Populated
 	 * by the scheduler / hook handlers / manual-fire command BEFORE pushing
 	 * onto `queue`, consumed by `fireRoutine` when it begins the turn.
