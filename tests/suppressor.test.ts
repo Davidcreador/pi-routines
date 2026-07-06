@@ -1,13 +1,11 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerSuppressor } from "../src/suppressor.ts";
 import { emptyStore } from "../src/store.ts";
+import { registerSuppressor } from "../src/suppressor.ts";
 import type { Routine, RoutineRuntimeState } from "../src/types.ts";
 
-type MessageEndHandler = (event: {
-	message: { role: string; content: unknown };
-}) => unknown;
+type MessageEndHandler = (event: { message: { role: string; content: unknown } }) => unknown;
 
 function makeRuntime(quiet: boolean): RoutineRuntimeState {
 	const routine: Routine = {

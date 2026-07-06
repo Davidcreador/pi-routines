@@ -294,7 +294,13 @@ async function handleRequest(
 	// /routine-resume to re-enable.
 	if (routine.paused) {
 		const triggerIndex = routine.triggers.indexOf(apiTrigger);
-		recordSkippedFire(runtime, runtime.store, routine, { index: triggerIndex, kind: "api" }, "paused");
+		recordSkippedFire(
+			runtime,
+			runtime.store,
+			routine,
+			{ index: triggerIndex, kind: "api" },
+			"paused",
+		);
 		res.writeHead(423, { "content-type": "application/json" });
 		res.end(JSON.stringify({ error: "routine is paused" }));
 		return;
@@ -359,7 +365,14 @@ async function handleRequest(
 	const runId = nanoid();
 	const triggerIndex = routine.triggers.indexOf(apiTrigger);
 
-	enqueueFireRequest(routine, triggerIndex, runtime, ctx.pi, ctx.getCtx, args ? { apiArgs: args } : {});
+	enqueueFireRequest(
+		routine,
+		triggerIndex,
+		runtime,
+		ctx.pi,
+		ctx.getCtx,
+		args ? { apiArgs: args } : {},
+	);
 
 	res.writeHead(202, { "content-type": "application/json" });
 	res.end(JSON.stringify({ runId }));

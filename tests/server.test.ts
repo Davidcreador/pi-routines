@@ -66,6 +66,8 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await stopServer(runtime);
+	// Paused-fire audit records persist via fire-and-forget saveStore.
+	await new Promise((resolve) => setTimeout(resolve, 10));
 });
 
 async function request(opts: {
