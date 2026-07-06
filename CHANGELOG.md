@@ -3,6 +3,57 @@
 All notable changes to `pi-routines` are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 0.4.0 — 2026-07-06
+
+Minor release: lifecycle fixes and Claude Code Routines parity improvements.
+No schema bump and no breaking changes.
+
+### Added
+
+- **Claude-style API fire compatibility.** API routines now accept
+  `POST /routines/<id>/fire` in addition to the existing `/trigger` route.
+  Routines with `allowArgs: true` may receive `{"text":"..."}` payloads;
+  the prompt sees them as `{apiArgs}` with shape `{"text":"..."}`.
+- **Per-fire queue payloads.** API and GitHub fires can now queue multiple
+  independent runs for the same routine without overwriting each other's
+  `{apiArgs}` or `{githubEvent}` payloads.
+- **GitHub batch fan-out.** When a poll observes multiple fresh matching
+  events, each event queues its own fire in chronological order, closer to
+  Claude Code Routines' one-session-per-event behavior.
+- **Skipped-run audit trail for paused automatic fires.** Scheduler, hook,
+  and API fire attempts against paused routines now record `skipped` runs
+  with reason `paused` while still consuming zero provider tokens.
+
+### Fixed
+
+- **`once: "per_session"` lifecycle hooks.** The guard now uses in-memory
+  session state instead of persisted `tickState`, so routines such as
+  `session-wrap` keep firing once per new pi session after their first-ever
+  run.
+- **Multiple `session_start` hooks.** Startup hooks now queue through the
+  normal FIFO drain path instead of directly competing for the active-turn
+  guard.
+- **Widget refresh lifecycle.** The periodic status refresh starts after the
+  persisted store loads and restarts after routine creation, so pre-existing
+  timed routines update correctly after startup.
+- **Reload/session reset cleanup.** Session startup now stops old scheduler
+  handles and widget refresh before reloading persisted state.
+- **Quiet-mode suppression.** The `[~]` response is only collapsed for
+  routines configured with `quiet: true`; verbose routines that emit `[~]`
+  remain visible in the transcript.
+
+### Documentation
+
+- Updated README, SKILL.md, and the one-off template wording to reflect
+  `/fire` compatibility, print-mode behavior, spent one-off triggers, and
+  the 0.4.0 release version.
+
+### Tests
+
+193 / 193 passing (was 185 in 0.3.1). Added regression coverage for hook
+lifecycle behavior, quiet-mode suppression, Claude-style API payloads,
+paused-fire skip records, and GitHub event batch fan-out.
+
 ## 0.3.1 — 2026-05-21
 
 Patch release: bug fixes uncovered by three self-audit passes after 0.3.0
