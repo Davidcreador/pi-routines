@@ -9,7 +9,7 @@
  * Refresh strategy: `updateWidget` is fire-and-forget on each routine
  * lifecycle event. `startWidgetRefresh` adds a low-frequency interval
  * (default 10s) so "next fire in Xm" countdowns drift down smoothly without
- * waking on every second. If no pulse routines are active we skip the
+ * waking on every second. If no timed routines are active we skip the
  * interval entirely.
  */
 
@@ -51,7 +51,7 @@ export function clearWidget(ctx: ExtensionContext): void {
  * `intervalMs` (default 10 000). Used to keep pulse countdowns accurate
  * between explicit lifecycle updates.
  *
- * Returns an idempotent stop function. If no pulse routines exist at call
+ * Returns an idempotent stop function. If no timed routines exist at call
  * time the interval is not started and the returned stop is a no-op — call
  * `startWidgetRefresh` again after creating a pulse routine.
  */

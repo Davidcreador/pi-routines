@@ -59,10 +59,11 @@ export function registerHooks(
 			guard.resetSessionHookFires(runtime);
 		}
 
-		// Reload the persisted store. tickState is preserved across reload
-		// but in-memory `timers`/`queue` are wiped on each load.
+		// Reload the persisted store. tickState is preserved across reload,
+		// but in-memory timers/queues belong to the previous loaded store.
+		stopScheduler(runtime);
+		stopWidgetRefresh(runtime);
 		runtime.store = await loadStore();
-		runtime.timers.clear();
 		runtime.queue.length = 0;
 		runtime.triggerOrigin.clear();
 		runtime.apiArgs?.clear();

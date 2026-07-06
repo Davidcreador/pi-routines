@@ -24,7 +24,10 @@ const { stopWidgetRefresh } = await import("../src/widget.ts");
 
 import type { Routine, RoutineRuntimeState, RoutineStore } from "../src/types.ts";
 
-type Handler = (event: Record<string, unknown>, ctx: ExtensionContext) => unknown | Promise<unknown>;
+type Handler = (
+	event: Record<string, unknown>,
+	ctx: ExtensionContext,
+) => unknown | Promise<unknown>;
 
 const liveRuntimes: RoutineRuntimeState[] = [];
 

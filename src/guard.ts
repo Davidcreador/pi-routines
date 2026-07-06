@@ -94,9 +94,10 @@ function getSessionHookFires(runtime: RoutineRuntimeState): Set<string> {
  *
  * Pulse routines should not call this — they're driven by setInterval.
  *
- * @param routine   The routine being considered.
  * @param tickState The persisted tick state for this routine, or `undefined`
- *                  if it has never fired (or was reset on session_start).
+ *                  if it has never fired.
+ * @param runtime   Runtime carrying per-session hook markers.
+ * @param sessionKey Stable key for the hook trigger being considered.
  */
 export function shouldFireHook(
 	trigger: HookTrigger,
