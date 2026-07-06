@@ -1,6 +1,6 @@
 ---
 name: routine
-version: 0.3.0
+version: 0.3.1
 description: Manage pi-routines — create, list, pause, stop, and install scheduled or event-driven AI prompts. Use when the user wants to schedule recurring prompts, set up a background check, install a monitoring routine, run a morning briefing, start a pomodoro, watch CI, watch deploys, babysit PRs, run a test guardian, build a hook on session_start / agent_end / session_shutdown, react to a GitHub event, accept webhook triggers, or fire something once at a specific timestamp.
 ---
 
@@ -38,17 +38,20 @@ commands when the user is driving; use tools when the LLM is reacting.
   and check-ins (pomodoro).
 - **`cron`** — clock-aligned cadences (9am weekdays, first of the month). 5-field POSIX.
   Pass `timezone` when known. Prefer cron over pulse when the user mentions clock times.
-- **`oneoff`** — fire once at an absolute ISO-8601 timestamp, then auto-disable.
+- **`oneoff`** — fire once at an absolute ISO-8601 timestamp, then mark that
+  trigger spent.
   Use for reminders, cleanup-after-deploy, "ping me in 2 weeks".
 - **`hook`** — pi lifecycle events:
   - `session_start` — onboarding, daily briefing (pair with `once: "daily"`).
   - `agent_end` — runs after every assistant turn ends. Rare; usually too noisy.
     At most one routine in the whole store may attach to `agent_end`.
   - `session_shutdown` — wrap-up, save notes (pair with `once: "per_session"`).
-- **`api`** — POST to `127.0.0.1:7424/routines/<id>/trigger` with a bearer token.
+- **`api`** — POST to `127.0.0.1:7424/routines/<id>/trigger` or the
+  Claude-style `/fire` route with a bearer token.
   Server is off by default — instruct the user to run `/routine-server start` and
   `/routine-token generate <name>` after creation. Pass `allowArgs: true` if the
-  caller will send a JSON body; reference `{apiArgs}` in the prompt.
+  caller will send a JSON body; reference `{apiArgs}` in the prompt. Supported
+  bodies are `{"args": {...}}` and `{"text": "..."}`.
 - **`github`** — polled `gh` events. Requires the `gh` CLI authenticated on PATH.
   Reference `{githubEvent}` in the prompt. Use filters (`labels`, `branches`,
   `mergedOnly`) to narrow the fire conditions.
@@ -145,9 +148,8 @@ Two robustness primitives that come up often:
 - **Max 20 active routines** per session, max 4 triggers per routine.
 - **Pulse routines do not fire mid-turn.** A tick that lands while the agent
   is streaming is queued (max depth 3) and drained on the next `agent_end`.
-- **Print mode (`pi --print`) skips pulse timers.** Routines that depend on
-  timers are inert in non-interactive runs; hook-triggered ones still fire
-  for `session_start`/`session_shutdown` if the run has them.
+- **Print mode (`pi --print`) skips timers, widget updates, and hook fires.**
+  Routines are inert in non-interactive runs, though tools still register.
 - **Sessions don't coordinate.** Two open pi sessions each schedule their own
   pulse timers from the shared `state.json`. Expect duplicate fires if the
   same routine is active in both.

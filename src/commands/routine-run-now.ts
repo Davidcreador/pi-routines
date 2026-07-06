@@ -15,7 +15,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import * as guard from "../guard.ts";
-import { drainQueue } from "../scheduler.ts";
+import { drainQueue, queueHasRoutine } from "../scheduler.ts";
 import { listRoutineNames, resolveRoutine } from "../tools/_resolve.ts";
 import type { RoutineRuntimeState } from "../types.ts";
 import { MAX_QUEUE_DEPTH } from "../types.ts";
@@ -68,7 +68,7 @@ export function registerRoutineRunNowCommand(
 			}
 
 			// Dedup: already queued.
-			if (runtime.queue.includes(routine.id)) {
+			if (queueHasRoutine(runtime, routine.id)) {
 				pi.sendMessage({
 					customType: SYSTEM_MSG_TYPE,
 					content: `'${routine.name}' is already queued; will fire shortly.`,

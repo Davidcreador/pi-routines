@@ -11,17 +11,33 @@
  */
 
 import { strict as assert } from "node:assert";
-import { afterEach, describe, it } from "node:test";
-import {
+import { promises as fs } from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { after, afterEach, describe, it } from "node:test";
+
+const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-gh-"));
+const origHome = process.env.HOME;
+process.env.HOME = tmpHome;
+
+const {
 	__setGhRunnerForTests,
 	armGithubPoller,
 	endpointFor,
 	filterEvents,
-	type GhResult,
 	normaliseEvents,
-} from "../src/github-poller.ts";
-import { emptyStore } from "../src/store.ts";
+	tickGithub,
+} = await import("../src/github-poller.ts");
+const { emptyStore } = await import("../src/store.ts");
+
+import type { GhResult } from "../src/github-poller.ts";
 import type { GithubTrigger, Routine, RoutineRuntimeState } from "../src/types.ts";
+
+after(async () => {
+	if (origHome === undefined) delete process.env.HOME;
+	else process.env.HOME = origHome;
+	await fs.rm(tmpHome, { recursive: true, force: true });
+});
 
 function makeRuntime(): RoutineRuntimeState {
 	return {
@@ -162,53 +178,41 @@ describe("github-poller — armed lifecycle", () => {
 		};
 		restoreRunner = __setGhRunnerForTests(stub);
 
-		// Drive tickGithub indirectly via the arm setTimeout. We bypass the
-		// timer here by invoking the internal tick directly through a private
-		// re-arm: easier to test by calling the runner ourselves and asserting
-		// the side effects through `tickGithub` re-imported.
-		// Instead we call the exposed flow: arm + manually tick.
-		// armGithubPoller schedules with setTimeout(interval); for the unit
-		// test we don't want to wait — invoke the tick by calling the runner
-		// then re-applying the same logic. To keep the test honest, we drive
-		// the public arm + use fake timers.
-
-		// We bypass timers entirely: call armGithubPoller to register state,
-		// then exercise the tick by calling the stub twice and asserting the
-		// cursor/queue transitions the helper would have produced. The
-		// integration is covered by typecheck + the scheduler test.
-		const handle = armGithubPoller(
-			routine,
-			0,
-			rt,
-			// biome-ignore lint/suspicious/noExplicitAny: test scaffold
-			{} as any,
-			() => null,
-		);
-		assert.ok(handle, "armGithubPoller should return a timer handle");
-		clearTimeout(handle as unknown as NodeJS.Timeout);
-
-		// Simulate first tick by invoking the stub + manual cursor update,
-		// mirroring tickGithub's first-time-seed branch.
-		const r1 = await stub(["api", endpointFor(trig)]);
-		assert.equal(r1.ok, true);
-		const seed = normaliseEvents(trig, r1.json)[0];
-		assert.ok(seed);
-		trig.cursor = seed?.id;
+		await tickGithub(routine, 0, rt, {} as never, () => null);
 		assert.equal(trig.cursor, "7");
 		assert.equal(rt.queue.length, 0);
 
-		// Simulate second tick: new PR #8 → cursor should advance and we'd
-		// enqueue the routine. We call the runner + apply the same cursor
-		// logic for assertion clarity.
-		const r2 = await stub(["api", endpointFor(trig)]);
-		const all = normaliseEvents(trig, r2.json);
-		const fresh: typeof all = [];
-		for (const ev of all) {
-			if (ev.id === trig.cursor) break;
-			fresh.push(ev);
-		}
-		assert.equal(fresh.length, 1);
-		assert.equal(fresh[0]?.id, "8");
+		await tickGithub(routine, 0, rt, {} as never, () => null);
+		assert.equal(trig.cursor, "8");
+		assert.equal(rt.queue.length, 1);
+		const entry = rt.queue[0];
+		assert.equal(typeof entry === "object" ? entry.githubEvent?.number : undefined, 8);
+	});
+
+	it("queues one fire per fresh GitHub event in chronological order", async () => {
+		const rt = makeRuntime();
+		const trig: GithubTrigger = {
+			kind: "github",
+			repo: "o/r",
+			event: "pull_request.opened",
+			pollIntervalMs: 60_000,
+			cursor: "4",
+		};
+		const routine = makeRoutine(trig);
+		rt.store.routines[routine.id] = routine;
+		restoreRunner = __setGhRunnerForTests(async () => ({
+			ok: true,
+			json: [{ number: 7 }, { number: 6 }, { number: 4 }],
+		}));
+
+		await tickGithub(routine, 0, rt, {} as never, () => null);
+
+		assert.equal(trig.cursor, "7");
+		assert.equal(rt.queue.length, 2);
+		assert.deepEqual(
+			rt.queue.map((entry) => (typeof entry === "object" ? entry.githubEvent?.number : undefined)),
+			[6, 7],
+		);
 	});
 
 	it("missing gh (ENOENT) returns gracefully — no throw, handle returned", async () => {

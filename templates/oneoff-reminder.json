@@ -1,6 +1,6 @@
 {
   "name": "oneoff-reminder",
-  "description": "Fires once at the specified ISO-8601 timestamp, then self-disables",
+  "description": "Fires once at the specified ISO-8601 timestamp, then marks the trigger spent",
   "trigger": {
     "kind": "oneoff",
     "fireAtIso": "2099-12-31T09:00:00Z"

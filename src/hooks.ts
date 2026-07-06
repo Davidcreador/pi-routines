@@ -27,9 +27,9 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { fireRoutine, recordRun } from "./executor.ts";
+import { fireRoutine, recordRun, recordSkippedFire } from "./executor.ts";
 import * as guard from "./guard.ts";
-import { drainQueue, scheduleRoutine, stopScheduler } from "./scheduler.ts";
+import { drainQueue, queueHasRoutine, scheduleRoutine, stopScheduler } from "./scheduler.ts";
 import { loadStore, saveStore } from "./store.ts";
 import type { HookTrigger, Routine, RoutineRuntimeState } from "./types.ts";
 import { clearWidget, restartWidgetRefresh, stopWidgetRefresh, updateWidget } from "./widget.ts";
@@ -220,11 +220,13 @@ function pickHookRoutines(
 ): Array<{ routine: Routine; trigger: HookTrigger; index: number }> {
 	const out: Array<{ routine: Routine; trigger: HookTrigger; index: number }> = [];
 	for (const routine of Object.values(runtime.store.routines)) {
-		// Paused routines never fire on hooks (matches the scheduler gate).
-		if (routine.paused) continue;
 		for (let i = 0; i < routine.triggers.length; i++) {
 			const trigger = routine.triggers[i];
 			if (trigger && trigger.kind === "hook" && trigger.event === event) {
+				if (routine.paused) {
+					recordSkippedFire(runtime, runtime.store, routine, { index: i, kind: "hook" }, "paused");
+					break;
+				}
 				out.push({ routine, trigger, index: i });
 				break; // one entry per routine per event
 			}
@@ -255,7 +257,7 @@ function enqueueHookFire(
 	trigger: HookTrigger,
 	index: number,
 ): boolean {
-	if (runtime.queue.includes(routine.id)) return false;
+	if (queueHasRoutine(runtime, routine.id)) return false;
 	if (!prepareHookFire(runtime, routine, trigger, index)) return false;
 	runtime.triggerOrigin.set(routine.id, { index, kind: "hook" });
 	runtime.queue.push(routine.id);

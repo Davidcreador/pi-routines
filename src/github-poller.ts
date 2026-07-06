@@ -16,10 +16,8 @@
  *   - Missing `gh` (ENOENT) → log once, leave the timer slot null, never
  *     crash. Other routines keep running.
  *   - On new event(s), the latest event id is written back to the trigger's
- *     `cursor` and persisted via `saveStore`. The injected `{ githubEvent }`
- *     template var (newest event JSON) is left in `runtime.userState` under
- *     `__githubEvent` so the executor / template-substitution layer can
- *     surface it later. v1 makes no further use of the payload.
+ *     `cursor` and persisted via `saveStore`. Each fresh event queues its own
+ *     fire with that event as the transient `{githubEvent}` payload.
  *
  * The actual `gh` invocation is funneled through {@link runGh} so tests can
  * swap it for a stub (`__setGhRunnerForTests`).
@@ -27,7 +25,7 @@
 
 import { spawn } from "node:child_process";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { enqueueTriggerFire } from "./scheduler.ts";
+import { enqueueFireRequest } from "./scheduler.ts";
 import { saveStore } from "./store.ts";
 import type { GithubTrigger, Routine, RoutineRuntimeState } from "./types.ts";
 import { MAX_GITHUB_BACKOFF_MS, MIN_GITHUB_POLL_MS } from "./types.ts";
@@ -330,24 +328,17 @@ export async function tickGithub(
 		return interval;
 	}
 
-	// Stash newest fresh event for downstream template substitution.
-	// We use the transient `runtime.githubEvents` map (peer of
-	// `runtime.apiArgs`) rather than writing into persisted `userState` so
-	// the payload doesn't survive past the next fire and doesn't count
-	// against the 2 KB userState cap.
-	const payload = fresh[0]?.payload;
-	if (payload) {
-		runtime.githubEvents ??= new Map();
-		runtime.githubEvents.set(routine.id, payload);
-	}
-
 	trig.cursor = newestId;
 	await saveStore(runtime.store);
 
-	try {
-		enqueueTriggerFire(live, triggerIndex, runtime, pi, getCtx);
-	} catch (err) {
-		console.error(`[pi-routines] github enqueue failed for '${routine.name}':`, err);
+	// Queue oldest first so a burst reads chronologically in the session. Each
+	// queue entry carries its own payload, avoiding per-routine map overwrites.
+	for (const ev of [...fresh].reverse()) {
+		try {
+			enqueueFireRequest(live, triggerIndex, runtime, pi, getCtx, { githubEvent: ev.payload });
+		} catch (err) {
+			console.error(`[pi-routines] github enqueue failed for '${routine.name}':`, err);
+		}
 	}
 	return interval;
 }

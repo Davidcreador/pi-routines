@@ -20,7 +20,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { nanoid } from "nanoid";
 import { describeTrigger, describeTriggers } from "../format.ts";
 import { nextCronFire, parseCron, parseInterval, parseOneOff } from "../parser.ts";
-import { scheduleRoutine, unscheduleRoutine } from "../scheduler.ts";
+import { queueEntryRoutineId, scheduleRoutine, unscheduleRoutine } from "../scheduler.ts";
 import { saveStore } from "../store.ts";
 import type {
 	ApiTrigger,
@@ -391,8 +391,7 @@ export async function deleteRoutine(
 	runtime.apiArgs?.delete(routine.id);
 	runtime.githubEvents?.delete(routine.id);
 	// Drop the routine from any pending queue position.
-	const queueIdx = runtime.queue.indexOf(routine.id);
-	if (queueIdx >= 0) runtime.queue.splice(queueIdx, 1);
+	runtime.queue = runtime.queue.filter((entry) => queueEntryRoutineId(entry) !== routine.id);
 	delete runtime.store.routines[routine.id];
 	delete runtime.store.tickState[routine.id];
 	await saveStore(runtime.store);

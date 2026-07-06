@@ -18,12 +18,12 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { fireRoutine } from "./executor.ts";
+import { fireRoutine, recordSkippedFire } from "./executor.ts";
 import { armGithubPoller } from "./github-poller.ts";
 import * as guard from "./guard.ts";
 import { nextCronFire, parseOneOff } from "./parser.ts";
 import { saveStore } from "./store.ts";
-import type { Routine, RoutineRuntimeState, RoutineTrigger } from "./types.ts";
+import type { Routine, RoutineQueueEntry, RoutineRuntimeState, RoutineTrigger } from "./types.ts";
 import { MAX_QUEUE_DEPTH, MULTI_TRIGGER_COLLAPSE_MS } from "./types.ts";
 
 const STALE_CTX_MARKER = "Extension context no longer active";
@@ -66,6 +66,22 @@ export function stopScheduler(runtime: RoutineRuntimeState): void {
 	runtime.timers.clear();
 	runtime.queue.length = 0;
 	getEnqueueMap(runtime).clear();
+}
+
+export function queueEntryRoutineId(entry: RoutineQueueEntry): string {
+	return typeof entry === "string" ? entry : entry.routineId;
+}
+
+export function queueHasRoutine(runtime: RoutineRuntimeState, routineId: string): boolean {
+	return runtime.queue.some((entry) => queueEntryRoutineId(entry) === routineId);
+}
+
+function dropOldestQueuedFire(runtime: RoutineRuntimeState, reason: string): void {
+	const dropped = runtime.queue.shift();
+	if (!dropped || typeof dropped === "string") return;
+	const routine = runtime.store.routines[dropped.routineId];
+	if (!routine || dropped.origin.kind === "manual") return;
+	recordSkippedFire(runtime, runtime.store, routine, dropped.origin, reason);
 }
 
 /**
@@ -218,6 +234,16 @@ export function enqueueTriggerFire(
 	// the trigger origin marker so the next fire isn't tagged with stale
 	// metadata.
 	if (live.paused) {
+		const trigger = live.triggers[triggerIndex];
+		if (trigger) {
+			recordSkippedFire(
+				runtime,
+				runtime.store,
+				live,
+				{ index: triggerIndex, kind: trigger.kind },
+				"paused",
+			);
+		}
 		runtime.triggerOrigin.delete(routine.id);
 		return;
 	}
@@ -228,10 +254,10 @@ export function enqueueTriggerFire(
 	if (now - last < MULTI_TRIGGER_COLLAPSE_MS) return;
 	enq.set(routine.id, now);
 
-	if (runtime.queue.includes(routine.id)) return;
+	if (queueHasRoutine(runtime, routine.id)) return;
 
 	if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-		runtime.queue.shift();
+		dropOldestQueuedFire(runtime, "queue overflow");
 	}
 
 	const trigger = routine.triggers[triggerIndex];
@@ -240,6 +266,38 @@ export function enqueueTriggerFire(
 	}
 
 	runtime.queue.push(routine.id);
+	void drainQueue(runtime, pi, getCtx);
+}
+
+/**
+ * Enqueue a specific fire with per-fire payload. Unlike `enqueueTriggerFire`,
+ * this can queue multiple entries for the same routine, matching Claude-style
+ * API/GitHub behavior where each matching event is its own run.
+ */
+export function enqueueFireRequest(
+	routine: Routine,
+	triggerIndex: number,
+	runtime: RoutineRuntimeState,
+	pi: ExtensionAPI,
+	getCtx: () => ExtensionContext | null,
+	payload: { apiArgs?: Record<string, unknown>; githubEvent?: Record<string, unknown> } = {},
+): void {
+	const live = runtime.store.routines[routine.id];
+	if (!live) {
+		unscheduleRoutine(routine.id, runtime);
+		return;
+	}
+	const trigger = live.triggers[triggerIndex];
+	if (!trigger) return;
+	const origin = { index: triggerIndex, kind: trigger.kind };
+	if (live.paused) {
+		recordSkippedFire(runtime, runtime.store, live, origin, "paused");
+		return;
+	}
+	if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
+		dropOldestQueuedFire(runtime, "queue overflow");
+	}
+	runtime.queue.push({ routineId: live.id, origin, ...payload });
 	void drainQueue(runtime, pi, getCtx);
 }
 
@@ -283,10 +341,22 @@ export async function drainQueue(
 		if (!ctx.isIdle()) return;
 		if (ctx.hasPendingMessages()) return;
 
-		const id = runtime.queue.shift();
-		if (!id) return;
+		const entry = runtime.queue.shift();
+		if (!entry) return;
+		const id = queueEntryRoutineId(entry);
 		const routine = runtime.store.routines[id];
 		if (!routine) continue; // deleted while queued — skip silently
+		if (typeof entry !== "string") {
+			runtime.triggerOrigin.set(id, entry.origin);
+			if (entry.apiArgs) {
+				runtime.apiArgs ??= new Map();
+				runtime.apiArgs.set(id, entry.apiArgs);
+			}
+			if (entry.githubEvent) {
+				runtime.githubEvents ??= new Map();
+				runtime.githubEvents.set(id, entry.githubEvent);
+			}
+		}
 
 		// Belt-and-braces pause gate. The primary gate is at enqueue
 		// (`enqueueTriggerFire`) and at hook pick (`pickHookRoutines`), but a
@@ -297,6 +367,9 @@ export async function drainQueue(
 			const origin = runtime.triggerOrigin.get(id);
 			if (origin?.kind !== "manual") {
 				runtime.triggerOrigin.delete(id);
+				runtime.apiArgs?.delete(id);
+				runtime.githubEvents?.delete(id);
+				if (origin) recordSkippedFire(runtime, runtime.store, routine, origin, "paused");
 				continue;
 			}
 		}

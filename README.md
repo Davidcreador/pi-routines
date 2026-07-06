@@ -19,9 +19,9 @@ credentials, with state that never leaves your machine.
 - 🕒 **Six trigger kinds**, freely mixable on the same routine (max 4 per routine):
   - `pulse` — fixed interval, minimum 30 s
   - `cron` — 5-field POSIX cron with timezone support
-  - `oneoff` — fire once at an ISO-8601 timestamp, then auto-disable
+  - `oneoff` — fire once at an ISO-8601 timestamp, then mark that trigger spent
   - `hook` — pi lifecycle events (`session_start` / `agent_end` / `session_shutdown`) with `once: daily|per_session`
-  - `api` — `POST 127.0.0.1:7424/routines/<id>/trigger` with a bearer token (off by default)
+  - `api` — `POST 127.0.0.1:7424/routines/<id>/trigger` (or Claude-style `/fire`) with a bearer token (off by default)
   - `github` — polled `gh` events: `pull_request.opened|closed`, `issues.opened`, `push`, with label / branch / merged filters
 - 📦 **11 bundled templates** — `ci-watch`, `pomodoro`, `morning-briefing`, `morning-cron`, `deploy-watch`, `session-wrap`, `pr-babysitter`, `test-guardian`, `api-webhook`, `oneoff-reminder`, `github-pr-review`
 - ⏯ **Pause / resume** — `/routine-pause` and `/routine-resume` keep the routine in the store with full run history but silence every fire path (scheduler / hooks / api → 423 Locked). Manual `/routine-run-now` bypasses the pause.
@@ -46,7 +46,7 @@ Anthropic's own [Claude Code Routines](https://code.claude.com/docs/en/routines)
 | Always-on / laptop closed | Yes                                          | No — only while pi is running                      |
 | Min cadence              | **1 hour**                                    | **30 seconds**                                     |
 | Schedule kinds           | recurring presets + cron (via `/schedule update`) + one-off | `pulse`, `cron`, `oneoff` — all three              |
-| API trigger              | `POST .../v1/claude_code/routines/<id>/fire`  | `POST 127.0.0.1:7424/routines/<id>/trigger`, off by default |
+| API trigger              | `POST .../v1/claude_code/routines/<id>/fire`  | `POST 127.0.0.1:7424/routines/<id>/trigger` or `/fire`, off by default |
 | GitHub trigger           | Webhook from Claude GitHub App, PR + Release events | Polled via your local `gh` CLI; PR/issues/push    |
 | Session-lifecycle hooks  | None (cloud has no session boundary)          | **`session_start` / `agent_end` / `session_shutdown` with `once: daily \| per_session`** |
 | State across ticks       | None (each run is fresh)                      | **`RoutineSetState` + `userState` (≤ 2 KB JSON)**   |
@@ -55,7 +55,7 @@ Anthropic's own [Claude Code Routines](https://code.claude.com/docs/en/routines)
 | Daily cap                | 5 / 15 / 25 by plan                           | Opt-in per-routine `maxRunsPerDay` (default: unlimited) |
 | Cost model               | Counts against subscription                   | Your own provider tokens via pi                     |
 | Privacy                  | Code + secrets uploaded to Anthropic          | Stays local                                         |
-| Discoverability          | Web UI + `/schedule`                          | 11 slash commands + 4 LLM tools + bundled skill     |
+| Discoverability          | Web UI + `/schedule`                          | 11 slash commands + 6 LLM tools + bundled skill     |
 | Manage from web GUI      | Yes                                           | No                                                  |
 
 Pick the cloud one when you need the routine to run while your laptop is closed. Pick `pi-routines` when you need sub-hourly cadences, session-lifecycle hooks, state across ticks, or on-device privacy.
@@ -213,6 +213,17 @@ delete persisted state: `rm ~/.pi/agent/extensions/routines/state.json`.
 | `/routine-token generate <id\|name>` | Generate a bearer token (shown once) |
 | `/routine-token rotate <id\|name>` | Rotate the bearer token |
 | `/routine-token show <id\|name>` | Show token preview (first 8 chars only) |
+
+API triggers accept both the native route and a Claude Code-style route:
+
+```bash
+POST http://127.0.0.1:7424/routines/<id>/trigger
+POST http://127.0.0.1:7424/routines/<id>/fire
+```
+
+When the routine has `allowArgs: true`, callers may send either
+`{"args": {...}}` or `{"text": "..."}`. The `text` form is exposed to the
+prompt as `{apiArgs}` with shape `{"text":"..."}`.
 
 ---
 

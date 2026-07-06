@@ -25,6 +25,7 @@ import { unscheduleRoutine } from "./scheduler.ts";
 import { saveStore } from "./store.ts";
 import type {
 	Routine,
+	RoutineFireOrigin,
 	RoutineRun,
 	RoutineRuntimeState,
 	RoutineStore,
@@ -253,6 +254,29 @@ export function recordRun(
 	// Fire-and-forget save — saveStore is best-effort and never throws.
 	void saveStore(store);
 	void runtime; // reserved for future debounce hook
+}
+
+/** Record an automatic fire that was dropped before opening an LLM turn. */
+export function recordSkippedFire(
+	runtime: RoutineRuntimeState,
+	store: RoutineStore,
+	routine: Routine,
+	origin: RoutineFireOrigin,
+	reason: string,
+): void {
+	const startedAt = Date.now();
+	recordRun(runtime, store, {
+		id: nanoid(),
+		routineId: routine.id,
+		startedAt,
+		endedAt: startedAt,
+		durationMs: 0,
+		status: "skipped",
+		triggerIndex: origin.index,
+		triggerKind: origin.kind,
+		snippet: reason,
+		skipReason: reason,
+	});
 }
 
 /** Truncate a candidate snippet to {@link SNIPPET_MAX_CHARS}. */

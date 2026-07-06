@@ -99,7 +99,9 @@ describe("server — auth", () => {
 		assert.equal(res.status, 202);
 		const json = JSON.parse(res.body);
 		assert.ok(typeof json.runId === "string" && json.runId.length > 0);
-		assert.deepEqual(runtime.queue, ["r1"]);
+		assert.equal(runtime.queue.length, 1);
+		assert.equal(typeof runtime.queue[0], "object");
+		assert.equal(typeof runtime.queue[0] === "object" ? runtime.queue[0].routineId : "", "r1");
 	});
 
 	it("401 on wrong token", async () => {
@@ -237,7 +239,24 @@ describe("server — body & args", () => {
 			body: JSON.stringify({ args: { greeting: "hi" } }),
 		});
 		assert.equal(res.status, 202);
-		assert.deepEqual(runtime.apiArgs?.get("r1"), { greeting: "hi" });
+		const entry = runtime.queue[0];
+		assert.deepEqual(typeof entry === "object" ? entry.apiArgs : undefined, { greeting: "hi" });
+	});
+
+	it("accepts Claude-style /fire body text when allowArgs is true", async () => {
+		const r = makeRoutine("r1", true);
+		runtime.store.routines[r.id] = r;
+		const token = await tokens.generateToken(r.id);
+		const res = await request({
+			pathname: "/routines/r1/fire",
+			headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+			body: JSON.stringify({ text: "deploy finished" }),
+		});
+		assert.equal(res.status, 202);
+		const entry = runtime.queue[0];
+		assert.deepEqual(typeof entry === "object" ? entry.apiArgs : undefined, {
+			text: "deploy finished",
+		});
 	});
 
 	it("rejects deeply nested args with 400", async () => {
@@ -267,6 +286,8 @@ describe("server — paused routines", () => {
 		assert.equal(res.status, 423);
 		// And, importantly, no enqueue happened.
 		assert.equal(runtime.queue.length, 0);
+		assert.equal(runtime.store.tickState.r1?.runs?.at(-1)?.status, "skipped");
+		assert.equal(runtime.store.tickState.r1?.runs?.at(-1)?.skipReason, "paused");
 	});
 
 	it("returns 202 again after resume", async () => {
