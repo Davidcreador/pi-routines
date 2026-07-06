@@ -47,9 +47,10 @@ import { registerRoutineListTool } from "../src/tools/routine-list.ts";
 import { registerRoutinePauseTool, registerRoutineResumeTool } from "../src/tools/routine-pause.ts";
 import { registerRoutineSetStateTool } from "../src/tools/routine-set-state.ts";
 import type { RoutineRuntimeState } from "../src/types.ts";
-import { clearWidget, startWidgetRefresh } from "../src/widget.ts";
+import { clearWidget, stopWidgetRefresh } from "../src/widget.ts";
 
 const CLEANUP_KEY = "__piRoutinesCleanup";
+const SESSION_HOOK_FIRES_KEY = "__piRoutinesSessionHookFires";
 
 export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	// ─── Hot-reload cleanup ────────────────────────────────────────────────
@@ -65,6 +66,10 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 			// Best-effort; old instance is gone either way.
 		}
 	}
+	const existingSessionHookFires = globalStore[SESSION_HOOK_FIRES_KEY];
+	const sessionHookFires =
+		existingSessionHookFires instanceof Set ? existingSessionHookFires : new Set<string>();
+	globalStore[SESSION_HOOK_FIRES_KEY] = sessionHookFires;
 
 	// ─── Singleton runtime state for this load ─────────────────────────────
 	const runtime: RoutineRuntimeState = {
@@ -74,6 +79,7 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 		isRoutineTurnActive: false,
 		activeRoutineName: null,
 		lastUiCtx: null,
+		sessionHookFires,
 		triggerOrigin: new Map(),
 		pendingRun: null,
 	};
@@ -117,13 +123,6 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	registerHooks(pi, runtime, getCtx, setCtx);
 	registerInputTracker(pi, runtime);
 
-	// ─── Widget refresh loop ───────────────────────────────────────────────
-	// `startWidgetRefresh` is a no-op when no pulse routines exist OR when
-	// invoked before session_start has populated `runtime.store`. We start
-	// it eagerly anyway because the loop itself is gated by `getCtx()` /
-	// `ctx.hasUI` checks inside `updateWidget`.
-	const stopWidgetRefresh = startWidgetRefresh(runtime, getCtx);
-
 	// Keep `currentCtx` fresh on tool_result too — tools can run via async
 	// flows that race the next lifecycle event.
 	pi.on("tool_result", (_event, ctx) => {
@@ -143,7 +142,7 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 			/* swallow during teardown */
 		}
 		try {
-			stopWidgetRefresh();
+			stopWidgetRefresh(runtime);
 		} catch {
 			/* swallow during teardown */
 		}

@@ -55,6 +55,30 @@ export function isRoutineTurnActive(runtime: RoutineRuntimeState): boolean {
 	return runtime.isRoutineTurnActive;
 }
 
+/** Stable key for a hook trigger's per-session fire marker. */
+export function hookFireKey(
+	routineId: string,
+	event: HookTrigger["event"],
+	triggerIndex: number,
+): string {
+	return `${routineId}:${event}:${triggerIndex}`;
+}
+
+/** Clear all per-session hook markers for a fresh pi session. */
+export function resetSessionHookFires(runtime: RoutineRuntimeState): void {
+	getSessionHookFires(runtime).clear();
+}
+
+/** Mark a per-session hook as already queued/fired in this session. */
+export function markSessionHookFired(runtime: RoutineRuntimeState, key: string): void {
+	getSessionHookFires(runtime).add(key);
+}
+
+function getSessionHookFires(runtime: RoutineRuntimeState): Set<string> {
+	if (!runtime.sessionHookFires) runtime.sessionHookFires = new Set();
+	return runtime.sessionHookFires;
+}
+
 /**
  * Decide whether a hook routine should fire on the current event.
  *
@@ -63,27 +87,32 @@ export function isRoutineTurnActive(runtime: RoutineRuntimeState): boolean {
  *                       today's `YYYY-MM-DD` (via `toLocaleDateString("en-CA")`,
  *                       which produces ISO-formatted local dates) against the
  *                       stored `lastFiredDateLocal`.
- *   - `"per_session"` — fire at most once per pi session. Detected by the
- *                       absence of `tickState` (which is reset on session_start).
+ *   - `"per_session"` — fire at most once per pi session. This must use
+ *                       in-memory runtime state because `tickState` is persisted
+ *                       across sessions.
  *   - undefined       — always fire.
  *
  * Pulse routines should not call this — they're driven by setInterval.
  *
- * @param routine   The routine being considered.
  * @param tickState The persisted tick state for this routine, or `undefined`
- *                  if it has never fired (or was reset on session_start).
+ *                  if it has never fired.
+ * @param runtime   Runtime carrying per-session hook markers.
+ * @param sessionKey Stable key for the hook trigger being considered.
  */
 export function shouldFireHook(
 	trigger: HookTrigger,
 	tickState: RoutineTickState | undefined,
+	runtime?: RoutineRuntimeState,
+	sessionKey?: string,
 ): boolean {
 	const once = trigger.once;
 	if (!once) return true;
-	if (!tickState) return true;
 
 	if (once === "per_session") {
-		return tickState.tickCount === 0;
+		if (!runtime || !sessionKey) return true;
+		return !getSessionHookFires(runtime).has(sessionKey);
 	}
+	if (!tickState) return true;
 	if (once === "daily") {
 		const today = new Date().toLocaleDateString("en-CA");
 		return tickState.lastFiredDateLocal !== today;

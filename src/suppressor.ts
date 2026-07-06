@@ -1,7 +1,7 @@
 /**
  * @file suppressor.ts — message_end interceptor that collapses `[~]` (silent
  * token) assistant responses produced by routine turns into a single compact
- * status line.
+ * status line when the active routine is configured with `quiet: true`.
  *
  * Wired by `extensions/index.ts`. The handler only fires while
  * {@link RoutineRuntimeState.isRoutineTurnActive} is true, so user-driven
@@ -57,12 +57,16 @@ export function registerSuppressor(pi: ExtensionAPI, runtime: RoutineRuntimeStat
 		if (event.message.role !== "assistant") return undefined;
 
 		const text = extractText(event.message);
+		const routine = runtime.pendingRun
+			? runtime.store.routines[runtime.pendingRun.routineId]
+			: undefined;
+		const isQuietRoutine = routine?.quiet === true;
 
 		// Populate the in-flight run record (if any) with the response snippet.
 		// agent_end will finalise + persist it.
 		if (runtime.pendingRun) {
 			const trimmed = text.trim();
-			if (trimmed === SILENT_TOKEN) {
+			if (isQuietRoutine && trimmed === SILENT_TOKEN) {
 				runtime.pendingRun.status = "silent";
 				runtime.pendingRun.snippet = SILENT_TOKEN;
 			} else if (text.length > 0) {
@@ -75,9 +79,10 @@ export function registerSuppressor(pi: ExtensionAPI, runtime: RoutineRuntimeStat
 		// Exact-equality check (see file header amendment). LLM may pad the
 		// token with whitespace; anything more substantial passes through.
 		if (text.trim() !== SILENT_TOKEN) return undefined;
+		if (!isQuietRoutine) return undefined;
 
-		const name = runtime.activeRoutineName ?? "routine";
-		const routineId = lookupRoutineIdByName(runtime, name);
+		const name = routine?.name ?? runtime.activeRoutineName ?? "routine";
+		const routineId = routine?.id ?? lookupRoutineIdByName(runtime, name);
 		const tickCount = routineId ? (runtime.store.tickState[routineId]?.tickCount ?? 0) : 0;
 		const time = new Date().toLocaleTimeString([], {
 			hour: "2-digit",

@@ -20,7 +20,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { nanoid } from "nanoid";
 import { describeTrigger, describeTriggers } from "../format.ts";
 import { nextCronFire, parseCron, parseInterval, parseOneOff } from "../parser.ts";
-import { scheduleRoutine, unscheduleRoutine } from "../scheduler.ts";
+import { queueEntryRoutineId, scheduleRoutine, unscheduleRoutine } from "../scheduler.ts";
 import { saveStore } from "../store.ts";
 import type {
 	ApiTrigger,
@@ -35,6 +35,7 @@ import type {
 	RoutineTrigger,
 } from "../types.ts";
 import { DEFAULT_GITHUB_POLL_MS, MIN_GITHUB_POLL_MS } from "../types.ts";
+import { restartWidgetRefresh } from "../widget.ts";
 import {
 	listRoutineNames as listRoutineNamesFromStore,
 	resolveRoutine as resolveFromStore,
@@ -348,6 +349,7 @@ export async function createRoutine(
 	await saveStore(runtime.store);
 
 	scheduleRoutine(routine, runtime, pi, getCtx);
+	restartWidgetRefresh(runtime, getCtx);
 
 	// Pick the "primary" trigger (first time-based one) for the convenience
 	// `nextFireIn` field. Hook-only routines omit it.
@@ -389,8 +391,7 @@ export async function deleteRoutine(
 	runtime.apiArgs?.delete(routine.id);
 	runtime.githubEvents?.delete(routine.id);
 	// Drop the routine from any pending queue position.
-	const queueIdx = runtime.queue.indexOf(routine.id);
-	if (queueIdx >= 0) runtime.queue.splice(queueIdx, 1);
+	runtime.queue = runtime.queue.filter((entry) => queueEntryRoutineId(entry) !== routine.id);
 	delete runtime.store.routines[routine.id];
 	delete runtime.store.tickState[routine.id];
 	await saveStore(runtime.store);

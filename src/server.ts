@@ -20,11 +20,11 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { nanoid } from "nanoid";
-import { drainQueue } from "./scheduler.ts";
+import { recordSkippedFire } from "./executor.ts";
+import { enqueueFireRequest } from "./scheduler.ts";
 import { verifyToken } from "./tokens.ts";
 import { resolveRoutine } from "./tools/_resolve.ts";
 import type { ApiTrigger, RoutineRuntimeState } from "./types.ts";
-import { MAX_QUEUE_DEPTH, MULTI_TRIGGER_COLLAPSE_MS } from "./types.ts";
 
 /** Default port if none supplied. */
 export const DEFAULT_PORT = 7424;
@@ -244,9 +244,9 @@ async function handleRequest(
 		return;
 	}
 
-	// 4. Route parse: POST /routines/:id/trigger
+	// 4. Route parse: POST /routines/:id/trigger or Claude-style /fire.
 	const url = req.url ?? "";
-	const m = /^\/routines\/([^/]+)\/trigger$/.exec(url);
+	const m = /^\/routines\/([^/]+)\/(?:trigger|fire)$/.exec(url);
 	if (!m) {
 		res.writeHead(404);
 		res.end();
@@ -293,6 +293,14 @@ async function handleRequest(
 	// 6b. Paused routines refuse api fires (HTTP 423 Locked). Resume with
 	// /routine-resume to re-enable.
 	if (routine.paused) {
+		const triggerIndex = routine.triggers.indexOf(apiTrigger);
+		recordSkippedFire(
+			runtime,
+			runtime.store,
+			routine,
+			{ index: triggerIndex, kind: "api" },
+			"paused",
+		);
 		res.writeHead(423, { "content-type": "application/json" });
 		res.end(JSON.stringify({ error: "routine is paused" }));
 		return;
@@ -335,6 +343,21 @@ async function handleRequest(
 				}
 			}
 			// If allowArgs is false, args are silently dropped.
+		} else if (parsed && typeof parsed === "object" && "text" in (parsed as object)) {
+			const rawText = (parsed as { text: unknown }).text;
+			if (typeof rawText !== "string") {
+				res.writeHead(400);
+				res.end();
+				return;
+			}
+			if (apiTrigger.allowArgs) {
+				args = sanitizeArgs({ text: rawText });
+				if (args === null) {
+					res.writeHead(400);
+					res.end();
+					return;
+				}
+			}
 		}
 	}
 
@@ -342,24 +365,14 @@ async function handleRequest(
 	const runId = nanoid();
 	const triggerIndex = routine.triggers.indexOf(apiTrigger);
 
-	if (!runtime.queue.includes(routine.id)) {
-		if (runtime.queue.length >= MAX_QUEUE_DEPTH) runtime.queue.shift();
-		runtime.triggerOrigin.set(routine.id, { index: triggerIndex, kind: "api" });
-		if (args) {
-			runtime.apiArgs ??= new Map();
-			runtime.apiArgs.set(routine.id, args);
-		}
-		runtime.queue.push(routine.id);
-		// Collapse window bookkeeping is per-scheduler; the API path uses its
-		// own dedup (queue.includes) so multi-trigger collisions across api+pulse
-		// within MULTI_TRIGGER_COLLAPSE_MS still get deduped via the queue.
-		void MULTI_TRIGGER_COLLAPSE_MS; // (referenced for documentation)
-	}
-
-	// Best-effort kickoff; do not await downstream LLM turn.
-	void drainQueue(runtime, ctx.pi, ctx.getCtx).catch((err) => {
-		console.error("[pi-routines] api-trigger drain failed:", err);
-	});
+	enqueueFireRequest(
+		routine,
+		triggerIndex,
+		runtime,
+		ctx.pi,
+		ctx.getCtx,
+		args ? { apiArgs: args } : {},
+	);
 
 	res.writeHead(202, { "content-type": "application/json" });
 	res.end(JSON.stringify({ runId }));

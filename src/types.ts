@@ -240,6 +240,26 @@ export interface RoutineRun {
 	snippet: string;
 }
 
+/** Origin metadata for one queued or in-flight routine fire. */
+export interface RoutineFireOrigin {
+	index: number;
+	kind: RoutineTrigger["kind"] | "manual";
+}
+
+/**
+ * FIFO queue entry. Older code/tests may still push a bare routine id and set
+ * `triggerOrigin` separately; object entries carry per-fire payloads so API and
+ * GitHub events can queue multiple independent fires for the same routine.
+ */
+export type RoutineQueueEntry =
+	| string
+	| {
+			routineId: string;
+			origin: RoutineFireOrigin;
+			apiArgs?: Record<string, unknown>;
+			githubEvent?: Record<string, unknown>;
+	  };
+
 // ─── Persisted store shape ───────────────────────────────────────────────────
 
 /** What gets written to state.json. */
@@ -263,8 +283,8 @@ export interface RoutineRuntimeState {
 	 * one-off triggers.
 	 */
 	timers: Map<string, Array<ReturnType<typeof setInterval> | null>>;
-	/** routine ids waiting for an idle slot (FIFO, deduped). */
-	queue: string[];
+	/** routine fires waiting for an idle slot (FIFO). */
+	queue: RoutineQueueEntry[];
 	/** Recursion guard — set true while a routine turn is in flight. */
 	isRoutineTurnActive: boolean;
 	/** Name of the currently executing routine (for widget/suppressor labels). */
@@ -272,12 +292,22 @@ export interface RoutineRuntimeState {
 	/** Most recently seen ExtensionContext, for use when firing outside an event. */
 	lastUiCtx: ExtensionContext | null;
 	/**
+	 * Per-session hook fire keys for `once: "per_session"`. This is intentionally
+	 * in-memory: persisted tick counts span sessions and cannot model this guard.
+	 */
+	sessionHookFires?: Set<string>;
+	/**
+	 * Stop handle for the widget's periodic refresh loop. Owned by widget.ts
+	 * but stored here so hooks and mutations can restart it after store changes.
+	 */
+	stopWidgetRefresh?: () => void;
+	/**
 	 * Trigger origin for the next/current enqueue per routine id. Populated
 	 * by the scheduler / hook handlers / manual-fire command BEFORE pushing
 	 * onto `queue`, consumed by `fireRoutine` when it begins the turn.
 	 * Non-persisted; cleared on session start.
 	 */
-	triggerOrigin: Map<string, { index: number; kind: RoutineTrigger["kind"] | "manual" }>;
+	triggerOrigin: Map<string, RoutineFireOrigin>;
 	/**
 	 * The in-flight run record. Set by `fireRoutine` on acquire, populated by
 	 * the suppressor / message_end with the response snippet, finalised by
