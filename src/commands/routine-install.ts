@@ -167,8 +167,7 @@ export function registerRoutineInstallCommand(
 				if (!repoOverride || !/^[^/?#\s]+\/[^/?#\s]+$/.test(repoOverride)) {
 					send(
 						pi,
-						`Template '${name}' needs a repository: ` +
-							`/routine-install ${name} owner/repo`,
+						`Template '${name}' needs a repository: ` + `/routine-install ${name} owner/repo`,
 					);
 					return;
 				}

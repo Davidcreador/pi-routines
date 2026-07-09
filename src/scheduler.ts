@@ -414,14 +414,7 @@ export async function drainQueue(
 						(item) => item.id !== entry.deferredHookId,
 					);
 				}
-				recordSkippedFire(
-					runtime,
-					runtime.store,
-					routine,
-					entry.origin,
-					"paused",
-					entry.runId,
-				);
+				recordSkippedFire(runtime, runtime.store, routine, entry.origin, "paused", entry.runId);
 				continue;
 			}
 		}

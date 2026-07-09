@@ -104,6 +104,7 @@ describe("server — auth", () => {
 		assert.equal(runtime.queue.length, 1);
 		assert.equal(typeof runtime.queue[0], "object");
 		assert.equal(typeof runtime.queue[0] === "object" ? runtime.queue[0].routineId : "", "r1");
+		assert.equal(runtime.queue[0]?.runId, json.runId);
 	});
 
 	it("401 on wrong token", async () => {
@@ -125,12 +126,12 @@ describe("server — auth", () => {
 		assert.equal(res.status, 401);
 	});
 
-	it("404 on unknown routine", async () => {
+	it("401 on unknown routine without leaking existence", async () => {
 		const res = await request({
 			pathname: "/routines/nope/trigger",
 			headers: { authorization: "Bearer anything" },
 		});
-		assert.equal(res.status, 404);
+		assert.equal(res.status, 401);
 	});
 
 	it("404 if routine exists but has no api trigger", async () => {

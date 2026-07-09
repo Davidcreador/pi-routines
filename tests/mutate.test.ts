@@ -71,6 +71,13 @@ describe("resolveTrigger — every kind", () => {
 		assert.throws(() => resolveTrigger({ kind: "pulse", interval: "10s" }), /at least 30 seconds/);
 	});
 
+	it("pulse: rejects ignored timezone configuration", () => {
+		assert.throws(
+			() => resolveTrigger({ kind: "pulse", interval: "1m", timezone: "UTC" }),
+			/do not support timezone/,
+		);
+	});
+
 	it("cron: accepts well-formed expression", () => {
 		const t = resolveTrigger({ kind: "cron", expr: "0 9 * * 1-5" });
 		assert.equal(t.kind, "cron");
@@ -117,6 +124,38 @@ describe("resolveTrigger — every kind", () => {
 		assert.throws(
 			() => resolveTrigger({ kind: "github", repo: "no-slash", event: "pull_request.opened" }),
 			/owner\/name/,
+		);
+		assert.throws(
+			() =>
+				resolveTrigger({
+					kind: "github",
+					repo: "owner/repo/extra",
+					event: "pull_request.opened",
+				}),
+			/owner\/name/,
+		);
+	});
+
+	it("github: validates filters against the event kind", () => {
+		assert.throws(
+			() =>
+				resolveTrigger({
+					kind: "github",
+					repo: "a/b",
+					event: "issues.opened",
+					filter: { branches: ["main"] },
+				}),
+			/only valid for push/,
+		);
+		assert.throws(
+			() =>
+				resolveTrigger({
+					kind: "github",
+					repo: "a/b",
+					event: "push",
+					filter: { labels: ["bug"] },
+				}),
+			/only valid for pull_request/,
 		);
 	});
 
@@ -174,6 +213,18 @@ describe("createRoutine — multi-trigger + validation", () => {
 		if ("error" in r) return;
 		assert.equal(r.updated, false);
 		assert.equal(rt.store.routines[r.id]?.triggers.length, 1);
+	});
+
+	it("rejects an empty or whitespace-only prompt", async () => {
+		const rt = track(makeRuntime());
+		const result = await createRoutine(
+			{ name: "blank", prompt: "   ", trigger: { kind: "pulse", interval: "1m" } },
+			rt,
+			fakePi,
+			getCtx,
+		);
+		assert.ok("error" in result);
+		assert.match("error" in result ? result.error : "", /Prompt must contain/);
 	});
 
 	it("creates a routine with multiple triggers (pulse + api)", async () => {

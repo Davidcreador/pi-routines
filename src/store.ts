@@ -278,7 +278,8 @@ function sanitizeTickState(routineId: string, value: unknown): RoutineTickState 
 				.slice(-MAX_RUN_HISTORY)
 		: undefined;
 	return {
-		tickCount: Number.isInteger(value.tickCount) && finiteNumber(value.tickCount) ? value.tickCount : 0,
+		tickCount:
+			Number.isInteger(value.tickCount) && finiteNumber(value.tickCount) ? value.tickCount : 0,
 		lastFiredAt: finiteNumber(value.lastFiredAt) ? value.lastFiredAt : 0,
 		lastFiredDateLocal:
 			typeof value.lastFiredDateLocal === "string" ? value.lastFiredDateLocal : "",
@@ -300,7 +301,10 @@ function trimUtf8End(value: string, maxBytes: number): { text: string; truncated
 	return { text, truncated: true };
 }
 
-function sanitizeDeferredHook(value: unknown, routines: Record<string, Routine>): DeferredHookFire | null {
+function sanitizeDeferredHook(
+	value: unknown,
+	routines: Record<string, Routine>,
+): DeferredHookFire | null {
 	if (!isRecord(value)) return null;
 	const routine = typeof value.routineId === "string" ? routines[value.routineId] : undefined;
 	if (

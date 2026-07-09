@@ -24,6 +24,7 @@ process.env.HOME = tmpHome;
 const { enqueueTriggerFire, stopScheduler } = await import("../src/scheduler.ts");
 const { emptyStore } = await import("../src/store.ts");
 const { createRoutine, setPaused } = await import("../src/tools/_mutate.ts");
+const tokens = await import("../src/tokens.ts");
 const { registerRoutinePauseTool, registerRoutineResumeTool } = await import(
 	"../src/tools/routine-pause.ts"
 );
@@ -183,17 +184,22 @@ describe("pause / resume", () => {
 		assert.ok(!("error" in created));
 		if ("error" in created) return;
 		// Simulate a pending api/github fire that the user deletes before it drains.
-		rt.queue.push(created.id);
-		rt.triggerOrigin.set(created.id, { index: 0, kind: "pulse" });
+		rt.queue.push({
+			routineId: created.id,
+			runId: "queued-delete",
+			origin: { index: 0, kind: "pulse" },
+		});
 		rt.apiArgs = new Map();
 		rt.apiArgs.set(created.id, { foo: "bar" });
 		rt.githubEvents = new Map();
 		rt.githubEvents.set(created.id, { number: 1 });
+		await tokens.generateToken(created.id);
 		await deleteRoutine("w", rt);
-		assert.equal(rt.queue.includes(created.id), false);
+		assert.equal(rt.queue.some((entry) => entry.routineId === created.id), false);
 		assert.equal(rt.triggerOrigin.has(created.id), false);
 		assert.equal(rt.apiArgs?.has(created.id), false);
 		assert.equal(rt.githubEvents?.has(created.id), false);
+		assert.equal(await tokens.getStoredToken(created.id), null);
 	});
 });
 

@@ -1,9 +1,30 @@
 import { strict as assert } from "node:assert";
-import { describe, it, mock } from "node:test";
-import { scheduleRoutine, stopScheduler, unscheduleRoutine } from "../src/scheduler.ts";
-import { emptyStore } from "../src/store.ts";
+import { promises as fs } from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { after, describe, it, mock } from "node:test";
+
+const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-scheduler-"));
+const origHome = process.env.HOME;
+process.env.HOME = tmpHome;
+
+const {
+	enqueueRoutineFire,
+	scheduleRoutine,
+	stopScheduler,
+	unscheduleRoutine,
+} = await import("../src/scheduler.ts");
+const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
+const { SCHEMA_VERSION } = await import("../src/types.ts");
+
 import type { Routine, RoutineRuntimeState } from "../src/types.ts";
-import { SCHEMA_VERSION } from "../src/types.ts";
+
+after(async () => {
+	await flushStoreWrites();
+	if (origHome === undefined) delete process.env.HOME;
+	else process.env.HOME = origHome;
+	await fs.rm(tmpHome, { recursive: true, force: true });
+});
 
 function makeRuntime(): RoutineRuntimeState {
 	return {
@@ -83,7 +104,8 @@ describe("scheduler — multi-trigger arming", () => {
 		mock.timers.tick(60_000);
 
 		// Both fired ~simultaneously → only one enqueue.
-		assert.equal(rt.queue.filter((id) => id === routine.id).length, 1);
+		assert.equal(rt.queue.filter((entry) => entry.routineId === routine.id).length, 1);
+		assert.equal(rt.store.tickState[routine.id]?.runs?.at(-1)?.skipReason, "collapsed duplicate trigger");
 		stopScheduler(rt);
 		mock.timers.reset();
 	});
@@ -137,7 +159,38 @@ describe("scheduler — multi-trigger arming", () => {
 		stopScheduler(rt);
 	});
 
-	it("schemaVersion is exported as 2", () => {
-		assert.equal(SCHEMA_VERSION, 2);
+	it("schemaVersion is exported as 3", () => {
+		assert.equal(SCHEMA_VERSION, 3);
+	});
+
+	it("records the oldest fire as skipped when queue backpressure evicts it", () => {
+		const rt = makeRuntime();
+		const routines = Array.from({ length: 4 }, (_, index): Routine => ({
+			id: `q${index}`,
+			name: `queue-${index}`,
+			prompt: "go",
+			triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
+			context: "session",
+			quiet: false,
+			createdAt: index,
+		}));
+		for (const routine of routines) {
+			rt.store.routines[routine.id] = routine;
+			enqueueRoutineFire(
+				routine,
+				{ index: 0, kind: "pulse" },
+				rt,
+				fakePi() as never,
+				() => null,
+				{ autoDrain: false },
+			);
+		}
+
+		assert.deepEqual(
+			rt.queue.map((entry) => entry.routineId),
+			["q1", "q2", "q3"],
+		);
+		assert.equal(rt.store.tickState.q0?.runs?.at(-1)?.skipReason, "queue overflow");
+		stopScheduler(rt);
 	});
 });

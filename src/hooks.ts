@@ -33,11 +33,7 @@ import * as guard from "./guard.ts";
 import { drainQueue, enqueueRoutineFire, scheduleRoutine, stopScheduler } from "./scheduler.ts";
 import { loadStore, saveStore } from "./store.ts";
 import type { HookTrigger, Routine, RoutineRuntimeState } from "./types.ts";
-import {
-	MAX_DEFERRED_HOOKS,
-	MAX_DEFERRED_TRANSCRIPT_BYTES,
-	MAX_QUEUE_DEPTH,
-} from "./types.ts";
+import { MAX_DEFERRED_HOOKS, MAX_DEFERRED_TRANSCRIPT_BYTES, MAX_QUEUE_DEPTH } from "./types.ts";
 import { clearWidget, restartWidgetRefresh, stopWidgetRefresh, updateWidget } from "./widget.ts";
 
 /**
@@ -286,12 +282,17 @@ function enqueueHookFire(
 }
 
 function ensureTickState(runtime: RoutineRuntimeState, routineId: string) {
-	return (runtime.store.tickState[routineId] ??= {
-		tickCount: 0,
-		lastFiredAt: 0,
-		lastFiredDateLocal: "",
-		userState: {},
-	});
+	let tickState = runtime.store.tickState[routineId];
+	if (!tickState) {
+		tickState = {
+			tickCount: 0,
+			lastFiredAt: 0,
+			lastFiredDateLocal: "",
+			userState: {},
+		};
+		runtime.store.tickState[routineId] = tickState;
+	}
+	return tickState;
 }
 
 function textFromContent(content: unknown): string {
@@ -321,17 +322,12 @@ function captureTranscript(ctx: ExtensionContext): { text: string; truncated: bo
 	if (encoded.length <= MAX_DEFERRED_TRANSCRIPT_BYTES) {
 		return { text: encoded.toString("utf8"), truncated: false };
 	}
-	let text = encoded
-		.subarray(encoded.length - MAX_DEFERRED_TRANSCRIPT_BYTES)
-		.toString("utf8");
+	let text = encoded.subarray(encoded.length - MAX_DEFERRED_TRANSCRIPT_BYTES).toString("utf8");
 	if (text.startsWith("\uFFFD")) text = text.slice(1);
 	return { text, truncated: true };
 }
 
-function captureDeferredShutdownHooks(
-	runtime: RoutineRuntimeState,
-	ctx: ExtensionContext,
-): void {
+function captureDeferredShutdownHooks(runtime: RoutineRuntimeState, ctx: ExtensionContext): void {
 	const endedSessionId = ctx.sessionManager.getSessionId();
 	const now = new Date();
 	const endedDateLocal = now.toLocaleDateString("en-CA");
@@ -375,7 +371,13 @@ function captureDeferredShutdownHooks(
 			...(transcript.truncated ? { transcriptTruncated: true } : {}),
 		});
 		const key = guard.hookFireKey(routine.id, trigger.event, index);
-		guard.commitHookFire(trigger, ensureTickState(runtime, routine.id), runtime, key, endedDateLocal);
+		guard.commitHookFire(
+			trigger,
+			ensureTickState(runtime, routine.id),
+			runtime,
+			key,
+			endedDateLocal,
+		);
 	}
 }
 
@@ -425,18 +427,11 @@ function promoteDeferredHooks(
 			);
 			continue;
 		}
-		enqueueRoutineFire(
-			routine,
-			{ index: item.triggerIndex, kind: "hook" },
-			runtime,
-			pi,
-			getCtx,
-			{
-				contextNote: deferredContextNote(item),
-				deferredHookId: item.id,
-				autoDrain: false,
-			},
-		);
+		enqueueRoutineFire(routine, { index: item.triggerIndex, kind: "hook" }, runtime, pi, getCtx, {
+			contextNote: deferredContextNote(item),
+			deferredHookId: item.id,
+			autoDrain: false,
+		});
 		queued.add(item.id);
 	}
 	if (changed) void saveStore(runtime.store, runtime.storeGeneration);

@@ -80,12 +80,33 @@ function capturePi(): {
 	return { pi, handlers, sentMessages };
 }
 
-function fakeCtx(statuses: string[] = []): ExtensionContext {
+function fakeCtx(
+	statuses: string[] = [],
+	options: {
+		sessionId?: string;
+		messages?: Array<{ role: string; text: string }>;
+		isIdle?: () => boolean;
+	} = {},
+): ExtensionContext {
 	return {
 		hasUI: true,
 		cwd: "/tmp/project",
-		isIdle: () => true,
+		isIdle: options.isIdle ?? (() => true),
 		hasPendingMessages: () => false,
+		sessionManager: {
+			getSessionId: () => options.sessionId ?? "session-1",
+			getBranch: () =>
+				(options.messages ?? []).map((message, index) => ({
+					type: "message",
+					id: `message-${index}`,
+					parentId: index > 0 ? `message-${index - 1}` : null,
+					timestamp: new Date(0).toISOString(),
+					message: {
+						role: message.role,
+						content: [{ type: "text", text: message.text }],
+					},
+				})),
+		},
 		ui: {
 			setStatus(_key: string, value: string | undefined) {
 				statuses.push(value ?? "");
@@ -186,7 +207,10 @@ describe("hooks lifecycle", () => {
 		await cap.handlers.get("session_start")?.({ reason: "launch" }, currentCtx);
 		assert.equal(cap.sentMessages.length, 1);
 		assert.match(cap.sentMessages[0] ?? "", /routine-first/);
-		assert.deepEqual(rt.queue, [second.id]);
+		assert.deepEqual(
+			rt.queue.map((entry) => entry.routineId),
+			[second.id],
+		);
 
 		await cap.handlers.get("agent_end")?.({}, currentCtx);
 		assert.equal(cap.sentMessages.length, 2);
@@ -221,5 +245,109 @@ describe("hooks lifecycle", () => {
 
 		mock.timers.tick(10_000);
 		assert.ok(statuses.length > statusCountAfterStart);
+	});
+
+	it("defers shutdown hooks and replays them with transcript context next session", async () => {
+		const routine = hookRoutine("wrap", "session_shutdown", "per_session");
+		await seedStore((store) => {
+			store.routines[routine.id] = routine;
+		});
+
+		const firstRuntime = makeRuntime();
+		const first = capturePi();
+		let firstCtx = fakeCtx([], {
+			sessionId: "ended-session",
+			messages: [
+				{ role: "user", text: "Fix the deployment" },
+				{ role: "assistant", text: "Deployment fixed" },
+			],
+		});
+		registerHooks(
+			first.pi,
+			firstRuntime,
+			() => firstCtx,
+			(ctx) => {
+				firstCtx = ctx;
+			},
+		);
+		await first.handlers.get("session_start")?.({ reason: "startup" }, firstCtx);
+		await first.handlers.get("session_shutdown")?.({ reason: "quit" }, firstCtx);
+
+		assert.equal(first.sentMessages.length, 0, "teardown must not start an LLM turn");
+		assert.equal(firstRuntime.store.deferredHooks.length, 1);
+
+		const secondRuntime = makeRuntime();
+		const second = capturePi();
+		let secondCtx = fakeCtx([], { sessionId: "next-session" });
+		registerHooks(
+			second.pi,
+			secondRuntime,
+			() => secondCtx,
+			(ctx) => {
+				secondCtx = ctx;
+			},
+		);
+		await second.handlers.get("session_start")?.({ reason: "startup" }, secondCtx);
+
+		assert.equal(second.sentMessages.length, 1);
+		assert.match(second.sentMessages[0] ?? "", /Fix the deployment/);
+		assert.match(second.sentMessages[0] ?? "", /previous session ended/i);
+		assert.equal(secondRuntime.store.deferredHooks.length, 0);
+	});
+
+	it("commits per-session markers only after a queued hook actually starts", async () => {
+		const routine = hookRoutine("start", "session_start", "per_session");
+		await seedStore((store) => {
+			store.routines[routine.id] = routine;
+		});
+		const rt = makeRuntime();
+		const cap = capturePi();
+		let idle = false;
+		let currentCtx = fakeCtx([], { isIdle: () => idle });
+		registerHooks(
+			cap.pi,
+			rt,
+			() => currentCtx,
+			(ctx) => {
+				currentCtx = ctx;
+			},
+		);
+
+		await cap.handlers.get("session_start")?.({ reason: "startup" }, currentCtx);
+		assert.equal(cap.sentMessages.length, 0);
+		assert.equal(rt.sessionHookFires?.size, 0);
+
+		idle = true;
+		await cap.handlers.get("agent_end")?.({}, currentCtx);
+		assert.equal(cap.sentMessages.length, 1);
+		assert.equal(rt.sessionHookFires?.size, 1);
+	});
+
+	it("tracks once:daily by hook trigger instead of sibling routine fires", async () => {
+		const routine = hookRoutine("daily", "session_start", "daily");
+		routine.triggers.unshift({ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" });
+		await seedStore((store) => {
+			store.routines[routine.id] = routine;
+			store.tickState[routine.id] = {
+				tickCount: 4,
+				lastFiredAt: Date.now(),
+				lastFiredDateLocal: new Date().toLocaleDateString("en-CA"),
+				userState: {},
+			};
+		});
+		const rt = makeRuntime();
+		const cap = capturePi();
+		let currentCtx = fakeCtx();
+		registerHooks(
+			cap.pi,
+			rt,
+			() => currentCtx,
+			(ctx) => {
+				currentCtx = ctx;
+			},
+		);
+
+		await cap.handlers.get("session_start")?.({ reason: "startup" }, currentCtx);
+		assert.equal(cap.sentMessages.length, 1);
 	});
 });

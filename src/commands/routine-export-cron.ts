@@ -108,11 +108,7 @@ export function registerRoutineExportCronCommand(
 				return;
 			}
 			const minutes = pulse.intervalMs / 60_000;
-			if (
-				pulse.intervalMs < MIN_CRON_MS ||
-				!Number.isInteger(minutes) ||
-				60 % minutes !== 0
-			) {
+			if (pulse.intervalMs < MIN_CRON_MS || !Number.isInteger(minutes) || 60 % minutes !== 0) {
 				send(
 					pi,
 					`Interval ${pulse.intervalHuman} cannot be represented exactly by a portable ` +

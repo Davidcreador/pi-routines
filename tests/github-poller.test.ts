@@ -104,6 +104,32 @@ describe("github-poller — pure helpers", () => {
 		);
 	});
 
+	it("excludes pull requests returned by the GitHub issues endpoint", () => {
+		const trigger: GithubTrigger = {
+			kind: "github",
+			repo: "o/r",
+			event: "issues.opened",
+			pollIntervalMs: 60_000,
+		};
+		assert.deepEqual(
+			normaliseEvents(trigger, [
+				{ number: 9, title: "issue" },
+				{ number: 10, pull_request: { url: "https://api.github.test/pr/10" } },
+			]).map((event) => event.id),
+			["9"],
+		);
+	});
+
+	it("builds branch-specific push endpoints safely", () => {
+		const trigger: GithubTrigger = {
+			kind: "github",
+			repo: "o/r",
+			event: "push",
+			pollIntervalMs: 60_000,
+		};
+		assert.match(endpointFor(trigger, "feature/a"), /sha=feature%2Fa/);
+	});
+
 	it("filterEvents() drops unmerged closed PRs when mergedOnly", () => {
 		const t: GithubTrigger = {
 			kind: "github",
@@ -212,6 +238,97 @@ describe("github-poller — armed lifecycle", () => {
 		assert.deepEqual(
 			rt.queue.map((entry) => (typeof entry === "object" ? entry.githubEvent?.number : undefined)),
 			[6, 7],
+		);
+	});
+
+	it("advances a missing cursor without replaying the bounded result page", async () => {
+		const rt = makeRuntime();
+		const trig: GithubTrigger = {
+			kind: "github",
+			repo: "o/r",
+			event: "pull_request.opened",
+			pollIntervalMs: 60_000,
+			cursor: "missing",
+		};
+		const routine = makeRoutine(trig);
+		rt.store.routines[routine.id] = routine;
+		restoreRunner = __setGhRunnerForTests(async () => ({
+			ok: true,
+			json: [{ number: 7 }, { number: 6 }],
+		}));
+
+		await tickGithub(routine, 0, rt, {} as never, () => null);
+
+		assert.equal(trig.cursor, "7");
+		assert.equal(rt.queue.length, 0);
+	});
+
+	it("locates the cursor before filtering so older matches are not replayed", async () => {
+		const rt = makeRuntime();
+		const trig: GithubTrigger = {
+			kind: "github",
+			repo: "o/r",
+			event: "pull_request.opened",
+			pollIntervalMs: 60_000,
+			cursor: "6",
+			filter: { labels: ["bug"] },
+		};
+		const routine = makeRoutine(trig);
+		rt.store.routines[routine.id] = routine;
+		restoreRunner = __setGhRunnerForTests(async () => ({
+			ok: true,
+			json: [
+				{ number: 7, labels: [] },
+				{ number: 6, labels: [] },
+				{ number: 5, labels: [{ name: "bug" }] },
+			],
+		}));
+
+		await tickGithub(routine, 0, rt, {} as never, () => null);
+
+		assert.equal(trig.cursor, "7");
+		assert.equal(rt.queue.length, 0);
+	});
+
+	it("polls push branches independently and carries branch payloads", async () => {
+		const rt = makeRuntime();
+		const trig: GithubTrigger = {
+			kind: "github",
+			repo: "o/r",
+			event: "push",
+			pollIntervalMs: 60_000,
+			filter: { branches: ["main", "dev"] },
+		};
+		const routine = makeRoutine(trig);
+		rt.store.routines[routine.id] = routine;
+		const calls = new Map<string, number>();
+		restoreRunner = __setGhRunnerForTests(async (args) => {
+			const endpoint = args[1] ?? "";
+			const branch = endpoint.includes("sha=main") ? "main" : "dev";
+			const call = (calls.get(branch) ?? 0) + 1;
+			calls.set(branch, call);
+			const oldSha = `${branch}-1`;
+			const json =
+				call === 1
+					? [{ sha: oldSha }]
+					: [
+							{
+								sha: `${branch}-2`,
+								commit: { author: { date: branch === "main" ? "2026-01-02" : "2026-01-03" } },
+							},
+							{ sha: oldSha },
+						];
+			return { ok: true, json };
+		});
+
+		await tickGithub(routine, 0, rt, {} as never, () => null);
+		assert.equal(rt.queue.length, 0);
+		await tickGithub(routine, 0, rt, {} as never, () => null);
+
+		assert.deepEqual(trig.branchCursors, { main: "main-2", dev: "dev-2" });
+		assert.deepEqual(
+			rt.queue.map((entry) => entry.githubEvent?.__branch),
+			["main", "dev"],
 		);
 	});
 

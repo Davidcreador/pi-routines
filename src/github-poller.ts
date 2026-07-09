@@ -415,8 +415,15 @@ export async function tickGithub(
 
 	// Queue before persisting the cursor. A crash can then cause an at-least-once
 	// replay, but cannot permanently lose an event between cursor save and enqueue.
-	fresh.sort((a, b) => eventTime(a) - eventTime(b));
-	for (const ev of fresh) {
+	const chronological = fresh
+		.map((event, index) => ({ event, index }))
+		.sort((a, b) => {
+			const aTime = eventTime(a.event);
+			const bTime = eventTime(b.event);
+			return aTime && bTime && aTime !== bTime ? aTime - bTime : b.index - a.index;
+		})
+		.map(({ event }) => event);
+	for (const ev of chronological) {
 		try {
 			enqueueFireRequest(live, triggerIndex, runtime, pi, getCtx, { githubEvent: ev.payload });
 		} catch (err) {
