@@ -1,6 +1,6 @@
 ---
 name: routine
-version: 0.5.0
+version: 0.5.1
 description: Manage pi-routines — create, list, pause, stop, and install scheduled or event-driven AI prompts. Use when the user wants to schedule recurring prompts, set up a background check, install a monitoring routine, run a morning briefing, start a pomodoro, watch CI, watch deploys, babysit PRs, run a test guardian, build a hook on session_start / agent_end / session_shutdown, react to a GitHub event, accept webhook triggers, or fire something once at a specific timestamp.
 ---
 

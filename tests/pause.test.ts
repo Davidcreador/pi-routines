@@ -22,7 +22,7 @@ const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
 const { enqueueTriggerFire, stopScheduler } = await import("../src/scheduler.ts");
-const { emptyStore } = await import("../src/store.ts");
+const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
 const { createRoutine, setPaused } = await import("../src/tools/_mutate.ts");
 const tokens = await import("../src/tokens.ts");
 const { registerRoutinePauseTool, registerRoutineResumeTool } = await import(
@@ -32,6 +32,7 @@ const { registerRoutinePauseTool, registerRoutineResumeTool } = await import(
 import type { RoutineRuntimeState } from "../src/types.ts";
 
 after(async () => {
+	await flushStoreWrites();
 	if (origHome === undefined) delete process.env.HOME;
 	else process.env.HOME = origHome;
 	await fs.rm(tmpHome, { recursive: true, force: true });

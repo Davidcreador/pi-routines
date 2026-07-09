@@ -30,11 +30,12 @@ const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
 const { scheduleRoutine, stopScheduler } = await import("../src/scheduler.ts");
-const { emptyStore } = await import("../src/store.ts");
+const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
 
 import type { OneOffTrigger, Routine, RoutineRuntimeState } from "../src/types.ts";
 
 after(async () => {
+	await flushStoreWrites();
 	if (origHome === undefined) delete process.env.HOME;
 	else process.env.HOME = origHome;
 	await fs.rm(tmpHome, { recursive: true, force: true });
@@ -75,7 +76,7 @@ beforeEach(() => {
 	});
 });
 
-afterEach(() => {
+afterEach(async () => {
 	console.warn = origWarn;
 	console.error = origError;
 	for (const rt of liveRuntimes.splice(0)) {
@@ -86,6 +87,7 @@ afterEach(() => {
 		}
 	}
 	mock.timers.reset();
+	await flushStoreWrites();
 });
 
 describe("oneoff — fired flag", () => {

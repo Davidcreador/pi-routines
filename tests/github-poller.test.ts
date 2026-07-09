@@ -29,12 +29,13 @@ const {
 	normaliseEvents,
 	tickGithub,
 } = await import("../src/github-poller.ts");
-const { emptyStore } = await import("../src/store.ts");
+const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
 
 import type { GhResult } from "../src/github-poller.ts";
 import type { GithubTrigger, Routine, RoutineRuntimeState } from "../src/types.ts";
 
 after(async () => {
+	await flushStoreWrites();
 	if (origHome === undefined) delete process.env.HOME;
 	else process.env.HOME = origHome;
 	await fs.rm(tmpHome, { recursive: true, force: true });
