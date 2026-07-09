@@ -125,11 +125,7 @@ export function enqueueRoutineFire(
 				}
 			}
 		}
-		dropQueuedFireAt(
-			runtime,
-			normalIndex >= 0 ? normalIndex : 0,
-			"queue overflow",
-		);
+		dropQueuedFireAt(runtime, normalIndex >= 0 ? normalIndex : 0, "queue overflow");
 	}
 	const entry = { routineId: routine.id, runId, origin, ...entryMetadata };
 	if (priority) {

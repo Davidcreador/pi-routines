@@ -358,7 +358,7 @@ function captureDeferredShutdownHooks(runtime: RoutineRuntimeState, ctx: Extensi
 		const superseded = runtime.store.deferredHooks.filter(
 			(item) => item.routineId === routine.id && item.triggerIndex === index,
 		);
-		for (const item of superseded) {
+		for (const _item of superseded) {
 			recordSkippedFire(
 				runtime,
 				runtime.store,

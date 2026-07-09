@@ -388,10 +388,7 @@ describe("github-poller — armed lifecycle", () => {
 			if (endpoint.includes("sha=release")) return { ok: false, error: "403" };
 			return {
 				ok: true,
-				json: [
-					{ sha: "main-2", commit: { author: { date: "2026-01-02" } } },
-					{ sha: "main-1" },
-				],
+				json: [{ sha: "main-2", commit: { author: { date: "2026-01-02" } } }, { sha: "main-1" }],
 			};
 		});
 

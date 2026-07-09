@@ -180,10 +180,7 @@ describe("loadStore (filesystem)", () => {
 
 		assert.equal(loaded.schemaVersion, 3);
 		assert.deepEqual(loaded.deferredHooks, []);
-		assert.equal(
-			loaded.tickState.daily?.hookOnceDaily?.["daily:session_start:0"],
-			"2026-07-09",
-		);
+		assert.equal(loaded.tickState.daily?.hookOnceDaily?.["daily:session_start:0"], "2026-07-09");
 	});
 
 	it("corrupt file: falls back to emptyStore", async () => {

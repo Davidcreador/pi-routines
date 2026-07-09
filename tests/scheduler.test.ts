@@ -213,14 +213,11 @@ describe("scheduler — multi-trigger arming", () => {
 		}
 		const deferred = routines[2];
 		assert.ok(deferred);
-		enqueueRoutineFire(
-			deferred,
-			{ index: 0, kind: "hook" },
-			rt,
-			fakePi() as never,
-			() => null,
-			{ autoDrain: false, priority: true, deferredHookId: "deferred-1" },
-		);
+		enqueueRoutineFire(deferred, { index: 0, kind: "hook" }, rt, fakePi() as never, () => null, {
+			autoDrain: false,
+			priority: true,
+			deferredHookId: "deferred-1",
+		});
 
 		assert.deepEqual(
 			rt.queue.map((entry) => entry.routineId),

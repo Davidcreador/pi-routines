@@ -9,9 +9,7 @@ const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-commands-")
 const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
-const { registerRoutineExportCronCommand } = await import(
-	"../src/commands/routine-export-cron.ts"
-);
+const { registerRoutineExportCronCommand } = await import("../src/commands/routine-export-cron.ts");
 const { registerRoutineInstallCommand } = await import("../src/commands/routine-install.ts");
 const { registerRoutineTokenCommand } = await import("../src/commands/routine-token.ts");
 const { stopScheduler } = await import("../src/scheduler.ts");
