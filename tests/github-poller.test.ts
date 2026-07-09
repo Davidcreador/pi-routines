@@ -193,7 +193,7 @@ describe("github-poller — subprocess limits", () => {
 		const bin = path.join(tmpHome, "bin-timeout");
 		await fs.mkdir(bin, { recursive: true });
 		const gh = path.join(bin, "gh");
-		await fs.writeFile(gh, "#!/bin/sh\nsleep 1\nprintf '[]'\n", "utf8");
+		await fs.writeFile(gh, "#!/bin/sh\n/bin/sleep 1\nprintf '[]'\n", "utf8");
 		await fs.chmod(gh, 0o755);
 		const previousPath = process.env.PATH;
 		process.env.PATH = bin;

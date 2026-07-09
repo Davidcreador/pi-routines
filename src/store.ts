@@ -361,7 +361,7 @@ function sanitizeDeferredHook(
 }
 
 /** Validate and sanitize parsed state so one malformed routine cannot break startup. */
-export function sanitizeStore(raw: unknown): RoutineStore {
+export function sanitizeStore(raw: unknown, migrateLegacyDaily = false): RoutineStore {
 	if (!isRecord(raw)) return emptyStore();
 	const routines: Record<string, Routine> = {};
 	const rawRoutines = isRecord(raw.routines) ? raw.routines : {};
@@ -378,6 +378,7 @@ export function sanitizeStore(raw: unknown): RoutineStore {
 		const trigger = routine.triggers.length === 1 ? routine.triggers[0] : undefined;
 		const tick = tickState[id];
 		if (
+			migrateLegacyDaily &&
 			trigger?.kind === "hook" &&
 			trigger.once === "daily" &&
 			tick?.lastFiredDateLocal &&
@@ -429,7 +430,7 @@ export async function loadStore(generation?: number): Promise<RoutineStore> {
 		if (version === SCHEMA_VERSION) return sanitizeStore(parsed);
 
 		// Older schema → current: back up raw, migrate, validate, and persist.
-		const migrated = sanitizeStore(migrateV1ToV2(parsed));
+		const migrated = sanitizeStore(migrateV1ToV2(parsed), true);
 		try {
 			await fs.mkdir(dirname(STATE_FILE), { recursive: true });
 			await fs.writeFile(`${STATE_FILE}.v${version}.bak`, raw, { encoding: "utf8", mode: 0o600 });
