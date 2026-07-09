@@ -116,9 +116,15 @@ export function enqueueRoutineFire(
 ): string {
 	const { autoDrain = true, priority = false, runId = nanoid(), ...entryMetadata } = metadata;
 	if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-		const normalIndex = priority
-			? runtime.queue.findLastIndex((entry) => !entry.deferredHookId)
-			: -1;
+		let normalIndex = -1;
+		if (priority) {
+			for (let index = runtime.queue.length - 1; index >= 0; index--) {
+				if (!runtime.queue[index]?.deferredHookId) {
+					normalIndex = index;
+					break;
+				}
+			}
+		}
 		dropQueuedFireAt(
 			runtime,
 			normalIndex >= 0 ? normalIndex : 0,
