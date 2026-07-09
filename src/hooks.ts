@@ -314,7 +314,7 @@ function captureTranscript(ctx: ExtensionContext): { text: string; truncated: bo
 	for (const entry of ctx.sessionManager.getBranch()) {
 		if (entry.type !== "message") continue;
 		const role = String(entry.message.role ?? "message");
-		const text = textFromContent(entry.message.content).trim();
+		const text = textFromContent((entry.message as { content?: unknown }).content).trim();
 		if (text) lines.push(`${role.toUpperCase()}:\n${text}`);
 	}
 	const encoded = Buffer.from(lines.join("\n\n"), "utf8");

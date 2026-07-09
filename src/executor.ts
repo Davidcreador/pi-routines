@@ -75,10 +75,10 @@ export function buildPrompt(
 	const header =
 		`[↺ routine: ${routine.name} · tick ${nextTick} · ${hhmm}]\n` +
 		`Previous state: ${userStateJson}\n\n` +
+		(contextNote ? `${contextNote}\n\n` : "") +
 		substituted;
 
 	const truncNote = truncated ? "\n\n[state truncated]" : "";
-	const extraContext = contextNote ? `\n\n---\n${contextNote}` : "";
 
 	const quietFooter = routine.quiet
 		? "\n\n---\n" +
@@ -86,7 +86,7 @@ export function buildPrompt(
 			"Do not explain that you are responding with [~]. Just output [~] and nothing else."
 		: "";
 
-	return header + truncNote + extraContext + quietFooter;
+	return header + truncNote + quietFooter;
 }
 
 /**

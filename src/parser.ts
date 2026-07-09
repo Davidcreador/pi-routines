@@ -87,7 +87,7 @@ export function parseInterval(input: string): ParsedInterval {
 	}
 
 	if (ms > MAX_MS) {
-		throw new Error("Intervals over 24h should use /routine-export-cron instead");
+		throw new Error("Intervals over 24h should use a cron trigger instead");
 	}
 	if (ms < MIN_MS) {
 		throw new Error("Interval must be at least 30 seconds");
