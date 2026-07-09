@@ -3,8 +3,7 @@
  *
  * Owns the `case "github"` arm of `scheduler.armTrigger`. Each armed trigger
  * runs `gh api` periodically and, on previously-unseen events, calls the
- * shared {@link enqueueTriggerFire} so the routine joins the normal fire
- * queue (with dedup, collapse, backpressure, etc.).
+ * shared {@link enqueueFireRequest} so each event keeps its own payload.
  *
  * Design rules:
  *   - Poll interval is bounded by {@link MIN_GITHUB_POLL_MS}; smaller values
@@ -15,11 +14,12 @@
  *     capped at {@link MAX_GITHUB_BACKOFF_MS}. A successful tick resets.
  *   - Missing `gh` (ENOENT) → log once, leave the timer slot null, never
  *     crash. Other routines keep running.
- *   - On new event(s), the latest event id is written back to the trigger's
- *     `cursor` and persisted via `saveStore`. Each fresh event queues its own
- *     fire with that event as the transient `{githubEvent}` payload.
+ *   - Push branch filters poll branch-specific endpoints with independent
+ *     cursors. Cursor loss advances without replaying the bounded result page.
+ *   - Each fresh event is queued before its cursor is persisted, preferring
+ *     at-least-once replay over permanent loss on process failure.
  *
- * The actual `gh` invocation is funneled through {@link runGh} so tests can
+ * The actual `gh` invocation is funneled through `defaultGhRunner` so tests can
  * swap it for a stub (`__setGhRunnerForTests`).
  */
 

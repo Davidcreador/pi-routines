@@ -1,8 +1,8 @@
 /**
  * @file store.ts — atomic, fault-tolerant persistence of {@link RoutineStore}.
  *
- * Reads/writes `${HOME}/.pi/agent/extensions/routines/state.json` (falls back
- * to `/tmp/pi-routines-state.json` when HOME is unset).
+ * Reads/writes `${HOME}/.pi/agent/extensions/routines/state.json` (using the
+ * OS home directory when HOME is unset).
  *
  * Design rules:
  * - {@link loadStore} never throws. Missing / corrupt / unreadable file all
@@ -38,13 +38,12 @@ export function emptyStore(): RoutineStore {
 }
 
 /**
- * One-way migration from v1 (no `schemaVersion`, `trigger: RoutineTrigger`)
- * to v2 (`schemaVersion: 2`, `triggers: RoutineTrigger[]`).
+ * Normalize v1 (`trigger`) and v2 (`triggers`) stores into the current schema.
  *
  * - Wraps each routine's singular `trigger` into a single-element
  *   `triggers` array.
  * - Drops the old `trigger` field.
- * - Idempotent: if already v2, returns the input unchanged.
+ * - Idempotent for stores that already use `triggers`.
  */
 export function migrateV1ToV2(raw: unknown): RoutineStore {
 	const empty = emptyStore();
@@ -440,9 +439,8 @@ export async function flushStoreWrites(): Promise<void> {
  *      shared tmp filename two concurrent writers either interleave bytes
  *      into the same file or trip ENOENT when one rename consumes the
  *      inode the other expected.
- *   4. `fs.rename` → final path (atomic on POSIX). Concurrent renames to
- *      the same target are still "last writer wins" — semantically the
- *      same as in-memory: the latest snapshot is what persists.
+ *   4. `fs.rename` → final path (atomic on POSIX). A module-level chain keeps
+ *      writes in invocation order; runtime generations discard stale reloads.
  *   5. Copy final → `${STATE_FILE}.bak` for disaster recovery.
  *
  * Any I/O error (disk full, EACCES, etc.) is caught and logged. The caller's
