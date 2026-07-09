@@ -11,7 +11,7 @@ process.env.HOME = tmpHome;
 
 const { startServer, stopServer } = await import("../src/server.ts");
 const tokens = await import("../src/tokens.ts");
-const { emptyStore } = await import("../src/store.ts");
+const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
 
 import type { Routine, RoutineRuntimeState } from "../src/types.ts";
 
@@ -66,8 +66,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await stopServer(runtime);
-	// Paused-fire audit records persist via fire-and-forget saveStore.
-	await new Promise((resolve) => setTimeout(resolve, 10));
+	await flushStoreWrites();
 });
 
 async function request(opts: {

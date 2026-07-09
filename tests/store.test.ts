@@ -12,8 +12,9 @@ const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
 const stateFile = path.join(tmpHome, ".pi/agent/extensions/routines/state.json");
-const { beginStoreGeneration, emptyStore, migrateV1ToV2, loadStore, saveStore } =
-	await import("../src/store.ts");
+const { beginStoreGeneration, emptyStore, migrateV1ToV2, loadStore, saveStore } = await import(
+	"../src/store.ts"
+);
 const { SCHEMA_VERSION } = await import("../src/types.ts");
 
 after(async () => {

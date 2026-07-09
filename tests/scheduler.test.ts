@@ -8,12 +8,9 @@ const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-scheduler-"
 const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
-const {
-	enqueueRoutineFire,
-	scheduleRoutine,
-	stopScheduler,
-	unscheduleRoutine,
-} = await import("../src/scheduler.ts");
+const { enqueueRoutineFire, scheduleRoutine, stopScheduler, unscheduleRoutine } = await import(
+	"../src/scheduler.ts"
+);
 const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
 const { SCHEMA_VERSION } = await import("../src/types.ts");
 
@@ -105,7 +102,10 @@ describe("scheduler — multi-trigger arming", () => {
 
 		// Both fired ~simultaneously → only one enqueue.
 		assert.equal(rt.queue.filter((entry) => entry.routineId === routine.id).length, 1);
-		assert.equal(rt.store.tickState[routine.id]?.runs?.at(-1)?.skipReason, "collapsed duplicate trigger");
+		assert.equal(
+			rt.store.tickState[routine.id]?.runs?.at(-1)?.skipReason,
+			"collapsed duplicate trigger",
+		);
 		stopScheduler(rt);
 		mock.timers.reset();
 	});
@@ -165,25 +165,23 @@ describe("scheduler — multi-trigger arming", () => {
 
 	it("records the oldest fire as skipped when queue backpressure evicts it", () => {
 		const rt = makeRuntime();
-		const routines = Array.from({ length: 4 }, (_, index): Routine => ({
-			id: `q${index}`,
-			name: `queue-${index}`,
-			prompt: "go",
-			triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
-			context: "session",
-			quiet: false,
-			createdAt: index,
-		}));
+		const routines = Array.from(
+			{ length: 4 },
+			(_, index): Routine => ({
+				id: `q${index}`,
+				name: `queue-${index}`,
+				prompt: "go",
+				triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
+				context: "session",
+				quiet: false,
+				createdAt: index,
+			}),
+		);
 		for (const routine of routines) {
 			rt.store.routines[routine.id] = routine;
-			enqueueRoutineFire(
-				routine,
-				{ index: 0, kind: "pulse" },
-				rt,
-				fakePi() as never,
-				() => null,
-				{ autoDrain: false },
-			);
+			enqueueRoutineFire(routine, { index: 0, kind: "pulse" }, rt, fakePi() as never, () => null, {
+				autoDrain: false,
+			});
 		}
 
 		assert.deepEqual(

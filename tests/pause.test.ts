@@ -195,7 +195,10 @@ describe("pause / resume", () => {
 		rt.githubEvents.set(created.id, { number: 1 });
 		await tokens.generateToken(created.id);
 		await deleteRoutine("w", rt);
-		assert.equal(rt.queue.some((entry) => entry.routineId === created.id), false);
+		assert.equal(
+			rt.queue.some((entry) => entry.routineId === created.id),
+			false,
+		);
 		assert.equal(rt.triggerOrigin.has(created.id), false);
 		assert.equal(rt.apiArgs?.has(created.id), false);
 		assert.equal(rt.githubEvents?.has(created.id), false);
