@@ -19,7 +19,7 @@ process.env.HOME = tmpHome;
 
 const { registerHooks } = await import("../src/hooks.ts");
 const { stopScheduler } = await import("../src/scheduler.ts");
-const { emptyStore, saveStore } = await import("../src/store.ts");
+const { emptyStore, flushStoreWrites, saveStore } = await import("../src/store.ts");
 const { stopWidgetRefresh } = await import("../src/widget.ts");
 
 import type { Routine, RoutineRuntimeState, RoutineStore } from "../src/types.ts";
@@ -43,6 +43,7 @@ afterEach(async () => {
 		stopWidgetRefresh(rt);
 	}
 	mock.timers.reset();
+	await flushStoreWrites();
 	await fs.rm(path.join(tmpHome, ".pi"), { recursive: true, force: true });
 });
 
