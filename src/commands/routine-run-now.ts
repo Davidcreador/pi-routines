@@ -15,10 +15,9 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
 import * as guard from "../guard.ts";
-import { drainQueue, queueHasRoutine } from "../scheduler.ts";
+import { drainQueue, enqueueRoutineFire, queueHasRoutine } from "../scheduler.ts";
 import { listRoutineNames, resolveRoutine } from "../tools/_resolve.ts";
 import type { RoutineRuntimeState } from "../types.ts";
-import { MAX_QUEUE_DEPTH } from "../types.ts";
 
 const SYSTEM_MSG_TYPE = "pi-routines/system";
 
@@ -77,13 +76,9 @@ export function registerRoutineRunNowCommand(
 				return;
 			}
 
-			// Backpressure cap (same policy as scheduler).
-			if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-				runtime.queue.shift();
-			}
-
-			runtime.triggerOrigin.set(routine.id, { index: -1, kind: "manual" });
-			runtime.queue.push(routine.id);
+			enqueueRoutineFire(routine, { index: -1, kind: "manual" }, runtime, pi, getCtx, {
+				autoDrain: false,
+			});
 
 			// Manual fires intentionally bypass `routine.paused` — pause is for
 			// the automated paths. Inform the user so the behaviour isn't surprising.

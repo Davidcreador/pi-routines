@@ -157,6 +157,18 @@ export function registerRoutineInstallCommand(
 			if (template.triggers && template.triggers.length > 0) {
 				for (const t of template.triggers) triggers.push(t as TriggerInput);
 			}
+			if (
+				triggers.some(
+					(trigger) => trigger.kind === "github" && trigger.repo.toLowerCase() === "owner/name",
+				)
+			) {
+				send(
+					pi,
+					`Template '${name}' contains the placeholder repo 'owner/name'. ` +
+						"Create it with /schedule and provide the real owner/repo.",
+				);
+				return;
+			}
 
 			const result = await createRoutine(
 				{

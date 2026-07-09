@@ -19,12 +19,11 @@
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { promises as fs } from "node:fs";
+import { homedir } from "node:os";
 import { dirname } from "node:path";
 
 /** Absolute path of the persisted token file. */
-export const TOKEN_FILE: string = process.env.HOME
-	? `${process.env.HOME}/.pi/agent/extensions/routines/tokens.json`
-	: "/tmp/pi-routines-tokens.json";
+export const TOKEN_FILE: string = `${process.env.HOME || homedir()}/.pi/agent/extensions/routines/tokens.json`;
 
 /** Permissive bits we will not tolerate: anything broader than 0o600. */
 const MAX_ALLOWED_MODE = 0o600;
@@ -35,6 +34,8 @@ interface TokenFile {
 
 /** In-memory cache so verifyToken doesn't hit disk per request. */
 let cache: TokenFile | null = null;
+let loadPromise: Promise<TokenFile> | null = null;
+let mutationChain: Promise<void> = Promise.resolve();
 
 /**
  * Refuse to load if the on-disk file is more permissive than `0o600`. A
@@ -52,60 +53,92 @@ async function assertSafeMode(path: string): Promise<void> {
 	}
 }
 
-/** Load tokens from disk (or cache). */
-export async function loadTokens(): Promise<TokenFile> {
-	if (cache) return cache;
+/** Refuse server startup when an existing token store has unsafe permissions. */
+export async function assertTokenStoreSafe(): Promise<void> {
 	try {
 		await assertSafeMode(TOKEN_FILE);
 	} catch (err) {
-		const code = (err as NodeJS.ErrnoException).code;
-		if (code === "ENOENT") {
-			cache = { tokens: {} };
-			return cache;
-		}
-		throw err;
+		if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
 	}
-	const raw = await fs.readFile(TOKEN_FILE, "utf8");
-	try {
-		const parsed = JSON.parse(raw) as Partial<TokenFile>;
-		cache = { tokens: { ...(parsed.tokens ?? {}) } };
-	} catch {
-		// Corrupt — start empty rather than block the user.
-		cache = { tokens: {} };
-	}
-	return cache;
 }
 
-/** Persist atomically with mode 0o600. */
+/** Load tokens from disk (or cache). */
+export async function loadTokens(): Promise<TokenFile> {
+	if (cache) return cache;
+	if (!loadPromise) {
+		loadPromise = (async () => {
+			try {
+				await assertSafeMode(TOKEN_FILE);
+			} catch (err) {
+				const code = (err as NodeJS.ErrnoException).code;
+				if (code === "ENOENT") {
+					cache = { tokens: {} };
+					return cache;
+				}
+				throw err;
+			}
+			const raw = await fs.readFile(TOKEN_FILE, "utf8");
+			try {
+				const parsed = JSON.parse(raw) as Partial<TokenFile>;
+				cache = { tokens: { ...(parsed.tokens ?? {}) } };
+			} catch {
+				cache = { tokens: {} };
+			}
+			return cache;
+		})().finally(() => {
+			loadPromise = null;
+		});
+	}
+	return loadPromise;
+}
+
+/** Persist atomically with mode 0o600. Callers serialize mutations. */
 async function saveTokens(data: TokenFile): Promise<void> {
 	const dir = dirname(TOKEN_FILE);
+	const tmp = `${TOKEN_FILE}.tmp.${randomBytes(4).toString("hex")}`;
 	await fs.mkdir(dir, { recursive: true });
-	const tmp = `${TOKEN_FILE}.tmp`;
-	// Open with explicit mode so the file is created 0600.
-	const fh = await fs.open(tmp, "w", 0o600);
 	try {
-		await fh.writeFile(JSON.stringify(data, null, 2), "utf8");
-	} finally {
-		await fh.close();
+		const fh = await fs.open(tmp, "w", 0o600);
+		try {
+			await fh.writeFile(JSON.stringify(data, null, 2), "utf8");
+		} finally {
+			await fh.close();
+		}
+		await fs.chmod(tmp, 0o600);
+		await fs.rename(tmp, TOKEN_FILE);
+		await fs.chmod(TOKEN_FILE, 0o600);
+		cache = data;
+	} catch (err) {
+		await fs.rm(tmp, { force: true });
+		throw err;
 	}
-	// Ensure mode in case umask widened it (open w/ mode is masked by umask).
-	await fs.chmod(tmp, 0o600);
-	await fs.rename(tmp, TOKEN_FILE);
-	await fs.chmod(TOKEN_FILE, 0o600);
-	cache = data;
+}
+
+async function mutateTokens<T>(mutate: (next: TokenFile) => T): Promise<T> {
+	let result!: T;
+	const operation = mutationChain.then(async () => {
+		const current = await loadTokens();
+		const next = { tokens: { ...current.tokens } };
+		result = mutate(next);
+		await saveTokens(next);
+	});
+	mutationChain = operation.catch(() => {});
+	await operation;
+	return result;
 }
 
 /** Reset the in-memory cache (test hook). */
 export function _resetTokenCache(): void {
 	cache = null;
+	loadPromise = null;
 }
 
 /** Create + persist a fresh token for a routine. Returns the plaintext token. */
 export async function generateToken(routineId: string): Promise<string> {
-	const data = await loadTokens();
 	const token = randomBytes(32).toString("hex");
-	data.tokens[routineId] = token;
-	await saveTokens(data);
+	await mutateTokens((data) => {
+		data.tokens[routineId] = token;
+	});
 	return token;
 }
 
@@ -129,11 +162,9 @@ export async function rotateToken(routineId: string): Promise<string> {
 
 /** Remove the token for a routine. */
 export async function revokeToken(routineId: string): Promise<void> {
-	const data = await loadTokens();
-	if (data.tokens[routineId]) {
+	await mutateTokens((data) => {
 		delete data.tokens[routineId];
-		await saveTokens(data);
-	}
+	});
 }
 
 /** Look up the stored token (used by `/routine-token show`). */

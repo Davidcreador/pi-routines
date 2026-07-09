@@ -112,7 +112,7 @@ export function registerRoutineSetStateTool(pi: ExtensionAPI, runtime: RoutineRu
 
 			tick.userState = merged;
 			runtime.store.tickState[routine.id] = tick;
-			await saveStore(runtime.store);
+			await saveStore(runtime.store, runtime.storeGeneration);
 
 			return {
 				content: [

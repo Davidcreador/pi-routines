@@ -18,6 +18,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { nanoid } from "nanoid";
 import { fireRoutine, recordSkippedFire } from "./executor.ts";
 import { armGithubPoller } from "./github-poller.ts";
 import * as guard from "./guard.ts";
@@ -56,20 +57,24 @@ function getEnqueueMap(runtime: RoutineRuntimeState): Map<string, number> {
 	return m;
 }
 
-/** Clear every active timer and empty the queue. Leaves store untouched. */
-export function stopScheduler(runtime: RoutineRuntimeState): void {
+/** Clear every active timer and audit queued work that cannot survive teardown. */
+export function stopScheduler(runtime: RoutineRuntimeState, reason?: string): void {
 	for (const handles of runtime.timers.values()) {
 		for (const h of handles) {
 			if (h) clearTimeout(h as unknown as NodeJS.Timeout);
 		}
 	}
 	runtime.timers.clear();
-	runtime.queue.length = 0;
+	if (reason) {
+		while (runtime.queue.length > 0) dropOldestQueuedFire(runtime, reason);
+	} else {
+		runtime.queue.length = 0;
+	}
 	getEnqueueMap(runtime).clear();
 }
 
 export function queueEntryRoutineId(entry: RoutineQueueEntry): string {
-	return typeof entry === "string" ? entry : entry.routineId;
+	return entry.routineId;
 }
 
 export function queueHasRoutine(runtime: RoutineRuntimeState, routineId: string): boolean {
@@ -78,10 +83,43 @@ export function queueHasRoutine(runtime: RoutineRuntimeState, routineId: string)
 
 function dropOldestQueuedFire(runtime: RoutineRuntimeState, reason: string): void {
 	const dropped = runtime.queue.shift();
-	if (!dropped || typeof dropped === "string") return;
+	if (!dropped) return;
 	const routine = runtime.store.routines[dropped.routineId];
-	if (!routine || dropped.origin.kind === "manual") return;
-	recordSkippedFire(runtime, runtime.store, routine, dropped.origin, reason);
+	if (!routine) return;
+	recordSkippedFire(runtime, runtime.store, routine, dropped.origin, reason, dropped.runId);
+}
+
+export interface QueueMetadata {
+	runId?: string;
+	apiArgs?: Record<string, unknown>;
+	githubEvent?: Record<string, unknown>;
+	contextNote?: string;
+	hookOnceKey?: string;
+	hookOnce?: RoutineQueueEntry["hookOnce"];
+	deferredHookId?: string;
+	autoDrain?: boolean;
+}
+
+/** Enqueue one fully-described fire, applying shared backpressure and drain handling. */
+export function enqueueRoutineFire(
+	routine: Routine,
+	origin: RoutineQueueEntry["origin"],
+	runtime: RoutineRuntimeState,
+	pi: ExtensionAPI,
+	getCtx: () => ExtensionContext | null,
+	metadata: QueueMetadata = {},
+): string {
+	if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
+		dropOldestQueuedFire(runtime, "queue overflow");
+	}
+	const { autoDrain = true, runId = nanoid(), ...entryMetadata } = metadata;
+	runtime.queue.push({ routineId: routine.id, runId, origin, ...entryMetadata });
+	if (autoDrain) {
+		void drainQueue(runtime, pi, getCtx).catch((err) => {
+			console.error(`[pi-routines] queue drain failed for '${routine.name}':`, err);
+		});
+	}
+	return runId;
 }
 
 /**
@@ -165,7 +203,7 @@ function armTrigger(
 				const msg = err instanceof Error ? err.message : String(err);
 				if (msg.includes("in the past")) {
 					trigger.fired = true;
-					void saveStore(runtime.store);
+					void saveStore(runtime.store, runtime.storeGeneration);
 				} else {
 					console.warn(`[pi-routines] one-off arm failed for '${routine.name}':`, err);
 				}
@@ -176,7 +214,7 @@ function armTrigger(
 				onFire();
 				// Mark spent and persist so /reload doesn't re-arm.
 				trigger.fired = true;
-				void saveStore(runtime.store);
+				void saveStore(runtime.store, runtime.storeGeneration);
 				const arr = runtime.timers.get(routine.id);
 				if (arr) arr[triggerIndex] = null;
 			}, delay) as unknown as ReturnType<typeof setInterval>;
@@ -251,22 +289,32 @@ export function enqueueTriggerFire(
 	const now = Date.now();
 	const enq = getEnqueueMap(runtime);
 	const last = enq.get(routine.id) ?? 0;
-	if (now - last < MULTI_TRIGGER_COLLAPSE_MS) return;
+	const trigger = live.triggers[triggerIndex];
+	if (!trigger) return;
+	if (now - last < MULTI_TRIGGER_COLLAPSE_MS) {
+		recordSkippedFire(
+			runtime,
+			runtime.store,
+			live,
+			{ index: triggerIndex, kind: trigger.kind },
+			"collapsed duplicate trigger",
+		);
+		return;
+	}
 	enq.set(routine.id, now);
 
-	if (queueHasRoutine(runtime, routine.id)) return;
-
-	if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-		dropOldestQueuedFire(runtime, "queue overflow");
+	if (queueHasRoutine(runtime, routine.id)) {
+		recordSkippedFire(
+			runtime,
+			runtime.store,
+			live,
+			{ index: triggerIndex, kind: trigger.kind },
+			"routine already queued",
+		);
+		return;
 	}
 
-	const trigger = routine.triggers[triggerIndex];
-	if (trigger) {
-		runtime.triggerOrigin.set(routine.id, { index: triggerIndex, kind: trigger.kind });
-	}
-
-	runtime.queue.push(routine.id);
-	void drainQueue(runtime, pi, getCtx);
+	enqueueRoutineFire(live, { index: triggerIndex, kind: trigger.kind }, runtime, pi, getCtx);
 }
 
 /**
@@ -280,25 +328,22 @@ export function enqueueFireRequest(
 	runtime: RoutineRuntimeState,
 	pi: ExtensionAPI,
 	getCtx: () => ExtensionContext | null,
-	payload: { apiArgs?: Record<string, unknown>; githubEvent?: Record<string, unknown> } = {},
-): void {
+	payload: QueueMetadata = {},
+): string | null {
 	const live = runtime.store.routines[routine.id];
 	if (!live) {
 		unscheduleRoutine(routine.id, runtime);
-		return;
+		return null;
 	}
 	const trigger = live.triggers[triggerIndex];
-	if (!trigger) return;
+	if (!trigger) return null;
 	const origin = { index: triggerIndex, kind: trigger.kind };
 	if (live.paused) {
-		recordSkippedFire(runtime, runtime.store, live, origin, "paused");
-		return;
+		const runId = payload.runId ?? nanoid();
+		recordSkippedFire(runtime, runtime.store, live, origin, "paused", runId);
+		return runId;
 	}
-	if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-		dropOldestQueuedFire(runtime, "queue overflow");
-	}
-	runtime.queue.push({ routineId: live.id, origin, ...payload });
-	void drainQueue(runtime, pi, getCtx);
+	return enqueueRoutineFire(live, origin, runtime, pi, getCtx, payload);
 }
 
 /** Clear all timers for a single routine. Safe to call if none exist. */
@@ -345,17 +390,14 @@ export async function drainQueue(
 		if (!entry) return;
 		const id = queueEntryRoutineId(entry);
 		const routine = runtime.store.routines[id];
-		if (!routine) continue; // deleted while queued — skip silently
-		if (typeof entry !== "string") {
-			runtime.triggerOrigin.set(id, entry.origin);
-			if (entry.apiArgs) {
-				runtime.apiArgs ??= new Map();
-				runtime.apiArgs.set(id, entry.apiArgs);
+		if (!routine) {
+			if (entry.deferredHookId) {
+				runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
+					(item) => item.id !== entry.deferredHookId,
+				);
+				await saveStore(runtime.store, runtime.storeGeneration);
 			}
-			if (entry.githubEvent) {
-				runtime.githubEvents ??= new Map();
-				runtime.githubEvents.set(id, entry.githubEvent);
-			}
+			continue;
 		}
 
 		// Belt-and-braces pause gate. The primary gate is at enqueue
@@ -364,17 +406,27 @@ export async function drainQueue(
 		// another routine is mid-turn. Manual fires (origin.kind === "manual")
 		// are the explicit override path and ignore the flag.
 		if (routine.paused) {
-			const origin = runtime.triggerOrigin.get(id);
-			if (origin?.kind !== "manual") {
-				runtime.triggerOrigin.delete(id);
+			if (entry.origin.kind !== "manual") {
 				runtime.apiArgs?.delete(id);
 				runtime.githubEvents?.delete(id);
-				if (origin) recordSkippedFire(runtime, runtime.store, routine, origin, "paused");
+				if (entry.deferredHookId) {
+					runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
+						(item) => item.id !== entry.deferredHookId,
+					);
+				}
+				recordSkippedFire(
+					runtime,
+					runtime.store,
+					routine,
+					entry.origin,
+					"paused",
+					entry.runId,
+				);
 				continue;
 			}
 		}
 
 		runtime.lastUiCtx = ctx;
-		await fireRoutine(routine, runtime, runtime.store, pi, ctx);
+		await fireRoutine(routine, runtime, runtime.store, pi, ctx, entry);
 	}
 }

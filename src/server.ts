@@ -22,7 +22,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { nanoid } from "nanoid";
 import { recordSkippedFire } from "./executor.ts";
 import { enqueueFireRequest } from "./scheduler.ts";
-import { verifyToken } from "./tokens.ts";
+import { assertTokenStoreSafe, verifyToken } from "./tokens.ts";
 import { resolveRoutine } from "./tools/_resolve.ts";
 import type { ApiTrigger, RoutineRuntimeState } from "./types.ts";
 
@@ -33,6 +33,7 @@ const MAX_BODY_BYTES = 4 * 1024;
 /** Rate limit window (ms) and capacity per token. */
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_CAPACITY = 60;
+const REQUEST_TIMEOUT_MS = 10_000;
 
 /** Live server state. Stored on a module-level singleton so cleanup is easy. */
 interface ServerState {
@@ -44,6 +45,7 @@ interface ServerState {
 }
 
 let active: ServerState | null = null;
+let closing: Promise<void> | null = null;
 
 /** True if the server is currently listening. */
 export function isServerRunning(): boolean {
@@ -159,6 +161,8 @@ export async function startServer(
 	ctx: StartContext,
 ): Promise<number> {
 	if (active) return active.port;
+	if (closing) await closing;
+	await assertTokenStoreSafe();
 
 	const server = createServer((req, res) => {
 		void handleRequest(req, res, runtime, ctx).catch((err) => {
@@ -200,14 +204,17 @@ export async function startServer(
 
 /** Stop the HTTP server. Idempotent. */
 export async function stopServer(_runtime: RoutineRuntimeState): Promise<void> {
+	if (closing) return closing;
 	if (!active) return;
 	const { server } = active;
 	active = null;
-	await new Promise<void>((resolve) => {
+	closing = new Promise<void>((resolve) => {
 		server.close(() => resolve());
 		// Force-close any keepalive connections so we don't hang on shutdown.
 		server.closeAllConnections?.();
 	});
+	await closing;
+	closing = null;
 }
 
 async function handleRequest(
@@ -222,6 +229,9 @@ async function handleRequest(
 		return;
 	}
 	active.requestCount++;
+	req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+		req.destroy(new Error("request timeout"));
+	});
 
 	// 1. Loopback re-check (defense in depth).
 	if (!isLoopback(req.socket.remoteAddress ?? undefined)) {
@@ -263,20 +273,8 @@ async function handleRequest(
 		return;
 	}
 	const routine = resolveRoutine(runtime.store, routineId);
-	if (!routine) {
-		// Don't leak existence info — verify against a placeholder so timing
-		// is comparable to an unknown-id case is not strictly needed here:
-		// the spec maps "no such routine" to 404. We DO require auth first
-		// so we don't reveal routine ids to unauthenticated callers; since
-		// the token is keyed by routineId, an unknown id can never have a
-		// valid token, so a 401 is technically also correct. Spec: 404.
-		// Apply 401 first if token is structurally bad, else 404.
-		res.writeHead(404);
-		res.end();
-		return;
-	}
-	const ok = await verifyToken(routine.id, bearer);
-	if (!ok) {
+	const ok = await verifyToken(routine?.id ?? "__missing__", bearer);
+	if (!routine || !ok) {
 		res.writeHead(401);
 		res.end();
 		return;
@@ -317,8 +315,8 @@ async function handleRequest(
 	let bodyText = "";
 	try {
 		bodyText = await readBody(req);
-	} catch {
-		res.writeHead(413);
+	} catch (err) {
+		res.writeHead((err as Error).message === "body too large" ? 413 : 408);
 		res.end();
 		return;
 	}
@@ -371,7 +369,7 @@ async function handleRequest(
 		runtime,
 		ctx.pi,
 		ctx.getCtx,
-		args ? { apiArgs: args } : {},
+		args ? { runId, apiArgs: args } : { runId },
 	);
 
 	res.writeHead(202, { "content-type": "application/json" });
