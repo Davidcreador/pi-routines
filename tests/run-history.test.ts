@@ -21,12 +21,13 @@ const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
 const { recordRun, truncateSnippet } = await import("../src/executor.ts");
-const { emptyStore } = await import("../src/store.ts");
+const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
 
 import type { Routine, RoutineRun, RoutineRuntimeState } from "../src/types.ts";
 import { MAX_RUN_HISTORY } from "../src/types.ts";
 
 after(async () => {
+	await flushStoreWrites();
 	if (origHome === undefined) delete process.env.HOME;
 	else process.env.HOME = origHome;
 	await fs.rm(tmpHome, { recursive: true, force: true });
