@@ -3,8 +3,7 @@
  *
  * Owns the `case "github"` arm of `scheduler.armTrigger`. Each armed trigger
  * runs `gh api` periodically and, on previously-unseen events, calls the
- * shared {@link enqueueTriggerFire} so the routine joins the normal fire
- * queue (with dedup, collapse, backpressure, etc.).
+ * shared {@link enqueueFireRequest} so each event keeps its own payload.
  *
  * Design rules:
  *   - Poll interval is bounded by {@link MIN_GITHUB_POLL_MS}; smaller values
@@ -15,11 +14,12 @@
  *     capped at {@link MAX_GITHUB_BACKOFF_MS}. A successful tick resets.
  *   - Missing `gh` (ENOENT) → log once, leave the timer slot null, never
  *     crash. Other routines keep running.
- *   - On new event(s), the latest event id is written back to the trigger's
- *     `cursor` and persisted via `saveStore`. Each fresh event queues its own
- *     fire with that event as the transient `{githubEvent}` payload.
+ *   - Push branch filters poll branch-specific endpoints with independent
+ *     cursors. Cursor loss advances without replaying the bounded result page.
+ *   - Each fresh event is queued before its cursor is persisted, preferring
+ *     at-least-once replay over permanent loss on process failure.
  *
- * The actual `gh` invocation is funneled through {@link runGh} so tests can
+ * The actual `gh` invocation is funneled through `defaultGhRunner` so tests can
  * swap it for a stub (`__setGhRunnerForTests`).
  */
 
@@ -43,6 +43,8 @@ export interface GhResult {
 export type GhRunner = (args: string[]) => Promise<GhResult>;
 
 let ghRunner: GhRunner = defaultGhRunner;
+const GH_TIMEOUT_MS = 30_000;
+const GH_MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 
 /** Test-only: substitute the `gh` invoker. Returns the previous runner. */
 export function __setGhRunnerForTests(runner: GhRunner): GhRunner {
@@ -52,6 +54,23 @@ export function __setGhRunnerForTests(runner: GhRunner): GhRunner {
 }
 
 function defaultGhRunner(args: string[]): Promise<GhResult> {
+	return runGhProcess(args, GH_TIMEOUT_MS, GH_MAX_OUTPUT_BYTES);
+}
+
+/** Test-only seam for timeout/output-limit behavior of the real subprocess runner. */
+export function __runGhProcessForTests(
+	args: string[],
+	timeoutMs: number,
+	maxOutputBytes: number,
+): Promise<GhResult> {
+	return runGhProcess(args, timeoutMs, maxOutputBytes);
+}
+
+function runGhProcess(
+	args: string[],
+	timeoutMs: number,
+	maxOutputBytes: number,
+): Promise<GhResult> {
 	return new Promise((resolve) => {
 		let proc: ReturnType<typeof spawn>;
 		try {
@@ -63,25 +82,48 @@ function defaultGhRunner(args: string[]): Promise<GhResult> {
 		}
 		let out = "";
 		let errBuf = "";
+		let outputBytes = 0;
+		let settled = false;
+		const finish = (result: GhResult) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
+			resolve(result);
+		};
+		const onChunk = (b: Buffer, target: "stdout" | "stderr") => {
+			outputBytes += b.length;
+			if (outputBytes > maxOutputBytes) {
+				proc.kill("SIGTERM");
+				finish({ ok: false, error: `gh output exceeded ${maxOutputBytes} bytes` });
+				return;
+			}
+			if (target === "stdout") out += b.toString("utf8");
+			else errBuf += b.toString("utf8");
+		};
+		const timeout = setTimeout(() => {
+			proc.kill("SIGTERM");
+			finish({ ok: false, error: `gh timed out after ${timeoutMs}ms` });
+		}, timeoutMs);
 		proc.stdout?.on("data", (b: Buffer) => {
-			out += b.toString("utf8");
+			onChunk(b, "stdout");
 		});
 		proc.stderr?.on("data", (b: Buffer) => {
-			errBuf += b.toString("utf8");
+			onChunk(b, "stderr");
 		});
 		proc.on("error", (err) => {
 			const code = (err as NodeJS.ErrnoException).code ?? "ESPAWN";
-			resolve({ ok: false, error: code });
+			finish({ ok: false, error: code });
 		});
 		proc.on("close", (code) => {
+			if (settled) return;
 			if (code !== 0) {
-				resolve({ ok: false, error: errBuf.trim() || `gh exit ${code}` });
+				finish({ ok: false, error: errBuf.trim() || `gh exit ${code}` });
 				return;
 			}
 			try {
-				resolve({ ok: true, json: JSON.parse(out) });
+				finish({ ok: true, json: JSON.parse(out) });
 			} catch (e) {
-				resolve({ ok: false, error: `parse: ${(e as Error).message}` });
+				finish({ ok: false, error: `parse: ${(e as Error).message}` });
 			}
 		});
 	});
@@ -90,7 +132,7 @@ function defaultGhRunner(args: string[]): Promise<GhResult> {
 // ─── Endpoint mapping ────────────────────────────────────────────────────────
 
 /** Build the `gh api` endpoint path for a given trigger. */
-export function endpointFor(trigger: GithubTrigger): string {
+export function endpointFor(trigger: GithubTrigger, branch?: string): string {
 	switch (trigger.event) {
 		case "pull_request.opened":
 			return `repos/${trigger.repo}/pulls?state=open&sort=created&direction=desc&per_page=30`;
@@ -99,7 +141,7 @@ export function endpointFor(trigger: GithubTrigger): string {
 		case "issues.opened":
 			return `repos/${trigger.repo}/issues?state=open&sort=created&direction=desc&per_page=30`;
 		case "push":
-			return `repos/${trigger.repo}/commits?per_page=30`;
+			return `repos/${trigger.repo}/commits?${branch ? `sha=${encodeURIComponent(branch)}&` : ""}per_page=30`;
 	}
 }
 
@@ -121,10 +163,15 @@ function asArray(json: unknown): Record<string, unknown>[] {
  * Parse a `gh` JSON result into normalised events newest-first. PRs and
  * issues key on `number`; commits key on `sha`.
  */
-export function normaliseEvents(trigger: GithubTrigger, json: unknown): NormalisedEvent[] {
+export function normaliseEvents(
+	trigger: GithubTrigger,
+	json: unknown,
+	branch?: string,
+): NormalisedEvent[] {
 	const items = asArray(json);
 	const out: NormalisedEvent[] = [];
 	for (const it of items) {
+		if (trigger.event === "issues.opened" && "pull_request" in it) continue;
 		let id: string | undefined;
 		if (trigger.event === "push") {
 			const sha = it.sha;
@@ -133,7 +180,12 @@ export function normaliseEvents(trigger: GithubTrigger, json: unknown): Normalis
 			const num = it.number;
 			if (typeof num === "number") id = String(num);
 		}
-		if (id) out.push({ id, payload: it });
+		if (id) {
+			out.push({
+				id,
+				payload: branch ? { ...it, __branch: branch } : it,
+			});
+		}
 	}
 	return out;
 }
@@ -159,10 +211,7 @@ export function filterEvents(trigger: GithubTrigger, events: NormalisedEvent[]):
 			}
 		}
 		if (trigger.event === "push" && f.branches && f.branches.length > 0) {
-			// `gh api repos/{r}/commits` does not include the ref; callers
-			// should pass per-branch endpoints. We accept all commits when
-			// branches filter is set and no ref info is available.
-			// (Documented limitation; a follow-up could fan out per branch.)
+			if (!f.branches.includes(String(ev.payload.__branch ?? ""))) return false;
 		}
 		return true;
 	});
@@ -191,6 +240,36 @@ function keyOf(routineId: string, idx: number): string {
 	return `${routineId}:${idx}`;
 }
 
+function eventsAfterCursor(
+	events: NormalisedEvent[],
+	cursor: string | undefined,
+): { nextCursor?: string; fresh: NormalisedEvent[]; cursorMissing: boolean } {
+	const nextCursor = events[0]?.id;
+	if (!nextCursor) return { fresh: [], cursorMissing: false };
+	if (cursor === undefined) return { nextCursor, fresh: [], cursorMissing: false };
+	const cursorIndex = events.findIndex((event) => event.id === cursor);
+	if (cursorIndex < 0) {
+		// The page is bounded. Replaying every item would duplicate old work;
+		// advance safely and wait for the next poll.
+		return { nextCursor, fresh: [], cursorMissing: true };
+	}
+	return { nextCursor, fresh: events.slice(0, cursorIndex), cursorMissing: false };
+}
+
+function eventTime(event: NormalisedEvent): number {
+	const direct = event.payload.created_at ?? event.payload.updated_at;
+	if (typeof direct === "string") return Date.parse(direct) || 0;
+	const commit = event.payload.commit;
+	if (commit && typeof commit === "object") {
+		const author = (commit as { author?: unknown }).author;
+		if (author && typeof author === "object") {
+			const date = (author as { date?: unknown }).date;
+			if (typeof date === "string") return Date.parse(date) || 0;
+		}
+	}
+	return 0;
+}
+
 /**
  * Arm a github poller for one trigger of `routine`. Returns the timer handle
  * stored in `runtime.timers`. Returns `null` when the trigger payload is
@@ -205,7 +284,7 @@ export function armGithubPoller(
 ): ReturnType<typeof setTimeout> | null {
 	const trig = routine.triggers[triggerIndex];
 	if (!trig || trig.kind !== "github") return null;
-	if (typeof trig.repo !== "string" || !trig.repo.includes("/")) {
+	if (typeof trig.repo !== "string" || !/^[^/?#\s]+\/[^/?#\s]+$/.test(trig.repo)) {
 		console.warn(`[pi-routines] github: invalid repo for '${routine.name}': ${String(trig.repo)}`);
 		return null;
 	}
@@ -270,10 +349,26 @@ export async function tickGithub(
 		return interval;
 	}
 
-	const result = await ghRunner(["api", endpointFor(trig)]);
+	const branches =
+		trig.event === "push"
+			? [...new Set((trig.filter?.branches ?? []).map((branch) => branch.trim()).filter(Boolean))]
+			: [];
+	const polls =
+		branches.length > 0
+			? await Promise.all(
+					branches.map(async (branch) => ({
+						branch,
+						result: await ghRunner(["api", endpointFor(trig, branch)]),
+					})),
+				)
+			: [{ branch: undefined, result: await ghRunner(["api", endpointFor(trig)]) }];
+	const failures = polls.filter(({ result }) => !result.ok);
+	const successfulPolls = polls.filter(({ result }) => result.ok);
+	let nextDelay = interval;
 
-	if (!result.ok) {
-		if (result.error === "ENOENT") {
+	if (failures.length > 0) {
+		const missingCli = failures.some(({ result }) => result.error === "ENOENT");
+		if (missingCli) {
 			if (!tstate.ghMissingLogged) {
 				console.warn(
 					`[pi-routines] github: 'gh' CLI not found — disabling poller for '${routine.name}'. Install gh and reload.`,
@@ -281,64 +376,84 @@ export async function tickGithub(
 				tstate.ghMissingLogged = true;
 				tmap.set(key, tstate);
 			}
-			// Park at max backoff; if user later installs gh, /reload re-arms.
-			return MAX_GITHUB_BACKOFF_MS;
+			nextDelay = MAX_GITHUB_BACKOFF_MS;
+		} else {
+			nextDelay = Math.min(tstate.backoffMs * 2, MAX_GITHUB_BACKOFF_MS);
+			tstate.backoffMs = nextDelay;
+			tmap.set(key, tstate);
+			for (const failure of failures) {
+				console.warn(
+					`[pi-routines] github poll failed for '${routine.name}' (${trig.repo}${failure.branch ? `:${failure.branch}` : ""}): ${failure.result.error}. Next try in ${Math.round(nextDelay / 1000)}s.`,
+				);
+			}
 		}
-		const nextBackoff = Math.min(tstate.backoffMs * 2, MAX_GITHUB_BACKOFF_MS);
-		tstate.backoffMs = nextBackoff;
+		if (successfulPolls.length === 0) return nextDelay;
+	} else {
+		// Full success — reset backoff.
+		tstate.backoffMs = interval;
 		tmap.set(key, tstate);
-		console.warn(
-			`[pi-routines] github poll failed for '${routine.name}' (${trig.repo}): ${result.error}. Next try in ${Math.round(nextBackoff / 1000)}s.`,
-		);
-		return nextBackoff;
 	}
 
-	// Success — reset backoff.
-	tstate.backoffMs = interval;
-	tmap.set(key, tstate);
-
-	const events = filterEvents(trig, normaliseEvents(trig, result.json));
-	if (events.length === 0) return interval;
-
-	// Events come back newest-first. The "newest" id becomes the next cursor.
-	const newestId = events[0]?.id;
-	const prevCursor = trig.cursor;
-
-	if (prevCursor === undefined) {
-		// First-time seed: persist newest id without firing.
-		trig.cursor = newestId;
-		await saveStore(runtime.store);
-		return interval;
-	}
-
-	// Collect events strictly newer than the cursor. For numeric ids
-	// (PR/issue numbers) we compare numerically; for shas we just take
-	// everything up to (but not including) the cursor sha in order.
 	const fresh: NormalisedEvent[] = [];
-	for (const ev of events) {
-		if (ev.id === prevCursor) break;
-		fresh.push(ev);
-	}
-	if (fresh.length === 0) {
-		// Cursor not present (e.g. items rolled past the page) — advance anyway.
-		if (newestId && newestId !== prevCursor) {
-			trig.cursor = newestId;
-			await saveStore(runtime.store);
+	let cursorChanged = false;
+	let seeded = false;
+
+	if (branches.length > 0) {
+		const cursors = { ...(trig.branchCursors ?? {}) };
+		for (const poll of successfulPolls) {
+			const branch = poll.branch as string;
+			const events = normaliseEvents(trig, poll.result.json, branch);
+			const previous = cursors[branch];
+			const batch = eventsAfterCursor(events, previous);
+			if (batch.cursorMissing) {
+				console.warn(
+					`[pi-routines] github cursor for '${routine.name}' branch '${branch}' left the result page; advancing without replay`,
+				);
+			}
+			if (batch.nextCursor && batch.nextCursor !== previous) {
+				cursors[branch] = batch.nextCursor;
+				cursorChanged = true;
+			}
+			if (previous === undefined && batch.nextCursor) seeded = true;
+			fresh.push(...filterEvents(trig, batch.fresh));
 		}
-		return interval;
+		trig.branchCursors = cursors;
+	} else {
+		const events = normaliseEvents(trig, successfulPolls[0]?.result.json);
+		const previous = trig.cursor;
+		const batch = eventsAfterCursor(events, previous);
+		if (batch.cursorMissing) {
+			console.warn(
+				`[pi-routines] github cursor for '${routine.name}' left the result page; advancing without replay`,
+			);
+		}
+		if (batch.nextCursor && batch.nextCursor !== previous) {
+			trig.cursor = batch.nextCursor;
+			cursorChanged = true;
+		}
+		if (previous === undefined && batch.nextCursor) seeded = true;
+		fresh.push(...filterEvents(trig, batch.fresh));
 	}
 
-	trig.cursor = newestId;
-	await saveStore(runtime.store);
-
-	// Queue oldest first so a burst reads chronologically in the session. Each
-	// queue entry carries its own payload, avoiding per-routine map overwrites.
-	for (const ev of [...fresh].reverse()) {
+	// Queue before persisting the cursor. A crash can then cause an at-least-once
+	// replay, but cannot permanently lose an event between cursor save and enqueue.
+	const chronological = fresh
+		.map((event, index) => ({ event, index }))
+		.sort((a, b) => {
+			const aTime = eventTime(a.event);
+			const bTime = eventTime(b.event);
+			return aTime && bTime && aTime !== bTime ? aTime - bTime : b.index - a.index;
+		})
+		.map(({ event }) => event);
+	for (const ev of chronological) {
 		try {
 			enqueueFireRequest(live, triggerIndex, runtime, pi, getCtx, { githubEvent: ev.payload });
 		} catch (err) {
 			console.error(`[pi-routines] github enqueue failed for '${routine.name}':`, err);
 		}
 	}
-	return interval;
+	if (cursorChanged || seeded) {
+		await saveStore(runtime.store, runtime.storeGeneration);
+	}
+	return nextDelay;
 }

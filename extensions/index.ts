@@ -39,7 +39,7 @@ import { registerScheduleCommand } from "../src/commands/schedule.ts";
 import { registerHooks, registerInputTracker } from "../src/hooks.ts";
 import { stopScheduler } from "../src/scheduler.ts";
 import { stopServer } from "../src/server.ts";
-import { emptyStore } from "../src/store.ts";
+import { beginStoreGeneration, emptyStore } from "../src/store.ts";
 import { registerSuppressor } from "../src/suppressor.ts";
 import { registerRoutineCreateTool } from "../src/tools/routine-create.ts";
 import { registerRoutineDeleteTool } from "../src/tools/routine-delete.ts";
@@ -58,6 +58,7 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	// on globalThis. Invoke it BEFORE we wire up new timers so the old
 	// intervals do not double-fire alongside ours.
 	const globalStore = globalThis as Record<string, unknown>;
+	const storeGeneration = beginStoreGeneration();
 	const previousCleanup = globalStore[CLEANUP_KEY];
 	if (typeof previousCleanup === "function") {
 		try {
@@ -74,6 +75,7 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	// ─── Singleton runtime state for this load ─────────────────────────────
 	const runtime: RoutineRuntimeState = {
 		store: emptyStore(), // overwritten by session_start → loadStore
+		storeGeneration,
 		timers: new Map(),
 		queue: [],
 		isRoutineTurnActive: false,
@@ -132,12 +134,12 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 	// ─── Cleanup registration ──────────────────────────────────────────────
 	const cleanup = (): void => {
 		try {
-			stopScheduler(runtime);
+			stopScheduler(runtime, "extension cleanup");
 		} catch {
 			/* swallow during teardown */
 		}
 		try {
-			void stopServer(runtime);
+			void stopServer(runtime, { preserveIntent: true });
 		} catch {
 			/* swallow during teardown */
 		}

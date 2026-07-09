@@ -78,6 +78,7 @@ const GithubTrigger = Type.Object({
 	kind: Type.Literal("github"),
 	repo: Type.String({
 		description: "GitHub 'owner/name'. Polled via the local `gh` CLI; gh must be authenticated.",
+		pattern: "^[^/?#\\s]+/[^/?#\\s]+$",
 	}),
 	event: Type.Union([
 		Type.Literal("pull_request.opened"),
@@ -111,6 +112,8 @@ const ParamsSchema = Type.Object({
 		description: "Short identifier, lowercase letters/digits/hyphens, max 32 chars.",
 	}),
 	prompt: Type.String({
+		minLength: 1,
+		pattern: "\\S",
 		description:
 			"What to ask Pi on each tick. May reference placeholders: {cwd}, {date}, {time}, " +
 			"{state}, {tickCount}, {apiArgs} (api triggers only), {githubEvent} (github triggers only). " +

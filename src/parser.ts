@@ -43,7 +43,7 @@ const SEGMENT_RE = /(\d+(?:\.\d+)?)\s*([a-zA-Z]+)/g;
  * @throws Error with a user-readable message on:
  *   - intervals < 30s ("Interval must be at least 30 seconds")
  *   - bare numbers with no unit ("Specify a unit: 5s, 5m, or 5h")
- *   - intervals > 24h ("Intervals over 24h should use /routine-export-cron instead")
+ *   - intervals > 24h ("Intervals over 24h should use a cron trigger instead")
  *   - unparseable input ("Could not parse interval: '<input>'. Examples: 5m, 1h, 90s")
  */
 export function parseInterval(input: string): ParsedInterval {
@@ -87,7 +87,7 @@ export function parseInterval(input: string): ParsedInterval {
 	}
 
 	if (ms > MAX_MS) {
-		throw new Error("Intervals over 24h should use /routine-export-cron instead");
+		throw new Error("Intervals over 24h should use a cron trigger instead");
 	}
 	if (ms < MIN_MS) {
 		throw new Error("Interval must be at least 30 seconds");

@@ -99,8 +99,11 @@ describe("drainQueue — pause gate", () => {
 		assert.ok(!("error" in r));
 		if ("error" in r) return;
 		// Queue the routine, THEN pause it (simulating: a tick raced the pause).
-		rt.queue.push(r.id);
-		rt.triggerOrigin.set(r.id, { index: 0, kind: "pulse" });
+		rt.queue.push({
+			routineId: r.id,
+			runId: "queued-pulse",
+			origin: { index: 0, kind: "pulse" },
+		});
 		await setPaused("w", true, rt);
 
 		await drainQueue(rt, fakePi, getCtx);
@@ -121,8 +124,11 @@ describe("drainQueue — pause gate", () => {
 		);
 		assert.ok(!("error" in r));
 		if ("error" in r) return;
-		rt.queue.push(r.id);
-		rt.triggerOrigin.set(r.id, { index: -1, kind: "manual" });
+		rt.queue.push({
+			routineId: r.id,
+			runId: "queued-manual",
+			origin: { index: -1, kind: "manual" },
+		});
 		await setPaused("w", true, rt);
 
 		await drainQueue(rt, fakePi, getCtx);

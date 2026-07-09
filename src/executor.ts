@@ -26,6 +26,7 @@ import { saveStore } from "./store.ts";
 import type {
 	Routine,
 	RoutineFireOrigin,
+	RoutineQueueEntry,
 	RoutineRun,
 	RoutineRuntimeState,
 	RoutineStore,
@@ -41,6 +42,7 @@ export function buildPrompt(
 	cwd: string,
 	apiArgs?: Record<string, unknown> | null,
 	githubEvent?: Record<string, unknown> | null,
+	contextNote?: string | null,
 ): string {
 	const now = new Date();
 	const time = now.toLocaleTimeString();
@@ -73,6 +75,7 @@ export function buildPrompt(
 	const header =
 		`[↺ routine: ${routine.name} · tick ${nextTick} · ${hhmm}]\n` +
 		`Previous state: ${userStateJson}\n\n` +
+		(contextNote ? `${contextNote}\n\n` : "") +
 		substituted;
 
 	const truncNote = truncated ? "\n\n[state truncated]" : "";
@@ -92,13 +95,21 @@ export function buildPrompt(
  * exception, release guard and log — the routine survives. The guard is
  * released by `hooks.ts` on the subsequent `agent_end` in the happy path.
  */
+export type FireRoutineOutcome = "started" | "skipped" | "deleted" | "error";
+
+function removeDeferredHook(store: RoutineStore, deferredHookId: string | undefined): void {
+	if (!deferredHookId) return;
+	store.deferredHooks = store.deferredHooks.filter((item) => item.id !== deferredHookId);
+}
+
 export async function fireRoutine(
 	routine: Routine,
 	runtime: RoutineRuntimeState,
 	store: RoutineStore,
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
-): Promise<void> {
+	request?: RoutineQueueEntry,
+): Promise<FireRoutineOutcome> {
 	const existing: RoutineTickState | undefined = store.tickState[routine.id];
 	const tickState: RoutineTickState = existing ?? {
 		tickCount: 0,
@@ -107,38 +118,47 @@ export async function fireRoutine(
 		userState: {},
 	};
 
+	// Object queue entries are authoritative. The map fallback remains for
+	// direct callers and stores written by older extension instances.
+	const origin = request?.origin ??
+		runtime.triggerOrigin.get(routine.id) ?? {
+			index: 0,
+			kind: (routine.triggers[0]?.kind ?? "pulse") as RoutineTrigger["kind"] | "manual",
+		};
+	runtime.triggerOrigin.delete(routine.id);
+	const runId = request?.runId ?? nanoid();
+
 	// maxTicks gate — applied BEFORE acquiring the guard so an exhausted
 	// routine cleans itself up without occupying a turn.
 	if (typeof routine.maxTicks === "number" && tickState.tickCount >= routine.maxTicks) {
 		unscheduleRoutine(routine.id, runtime);
+		removeDeferredHook(store, request?.deferredHookId);
 		delete store.routines[routine.id];
 		delete store.tickState[routine.id];
-		await saveStore(store);
-		return;
+		await saveStore(store, runtime.storeGeneration);
+		return "deleted";
 	}
 
-	// Pull (and consume) trigger origin set by scheduler / hook / manual-fire
-	// path. Default: first trigger.
-	const origin = runtime.triggerOrigin.get(routine.id) ?? {
-		index: 0,
-		kind: (routine.triggers[0]?.kind ?? "pulse") as RoutineTrigger["kind"] | "manual",
-	};
-	runtime.triggerOrigin.delete(routine.id);
-
 	const startedAt = Date.now();
+	const budgetExempt = origin.kind === "manual" || Boolean(request?.deferredHookId);
 
 	// maxRunsPerDay soft cap — applied BEFORE acquiring the guard so capped
 	// fires consume zero provider tokens. The counter rolls over to 0 at
 	// local midnight (compared via the `en-CA` locale's ISO date format).
-	// Manual fires (/routine-run-now) bypass this cap, matching pause
-	// semantics; the user explicitly asked for an extra run.
-	if (typeof routine.maxRunsPerDay === "number" && origin.kind !== "manual") {
+	// Manual and deferred shutdown fires bypass the cap: both are explicit
+	// work that should not consume the automatic schedule's daily budget.
+	if (typeof routine.maxRunsPerDay === "number" && !budgetExempt) {
 		const today = new Date().toLocaleDateString("en-CA");
 		const sameDay = tickState.runsTodayDate === today;
 		const usedToday = sameDay ? (tickState.runsToday ?? 0) : 0;
 		if (usedToday >= routine.maxRunsPerDay) {
+			const hookTrigger = routine.triggers[origin.index];
+			if (request?.hookOnceKey && request.hookOnce === "daily" && hookTrigger?.kind === "hook") {
+				guard.commitHookFire(hookTrigger, tickState, runtime, request.hookOnceKey, today);
+				store.tickState[routine.id] = tickState;
+			}
 			recordRun(runtime, store, {
-				id: nanoid(),
+				id: runId,
 				routineId: routine.id,
 				startedAt,
 				endedAt: startedAt,
@@ -149,7 +169,7 @@ export async function fireRoutine(
 				snippet: `Daily cap reached (${usedToday}/${routine.maxRunsPerDay})`,
 				skipReason: "daily cap reached",
 			});
-			return;
+			return "skipped";
 		}
 	}
 
@@ -161,19 +181,27 @@ export async function fireRoutine(
 		// `agent_end` finalises it.
 		runtime.pendingRun = {
 			routineId: routine.id,
-			runId: nanoid(),
+			runId,
 			triggerIndex: origin.index,
 			triggerKind: origin.kind,
 			startedAt,
 			snippet: "",
 			status: "success",
+			...(request?.deferredHookId ? { deferredHookId: request.deferredHookId } : {}),
 		};
 
-		const apiArgs = runtime.apiArgs?.get(routine.id) ?? null;
+		const apiArgs = request?.apiArgs ?? runtime.apiArgs?.get(routine.id) ?? null;
 		runtime.apiArgs?.delete(routine.id);
-		const githubEvent = runtime.githubEvents?.get(routine.id) ?? null;
+		const githubEvent = request?.githubEvent ?? runtime.githubEvents?.get(routine.id) ?? null;
 		runtime.githubEvents?.delete(routine.id);
-		const prompt = buildPrompt(routine, tickState, ctx.cwd, apiArgs, githubEvent);
+		const prompt = buildPrompt(
+			routine,
+			tickState,
+			ctx.cwd,
+			apiArgs,
+			githubEvent,
+			request?.contextNote,
+		);
 
 		// NB: PLAN/PROMPT request `deliverAs: "nextTurn"`, but the typed
 		// ExtensionAPI.sendUserMessage signature only allows "steer" | "followUp".
@@ -189,7 +217,7 @@ export async function fireRoutine(
 		const today = new Date().toLocaleDateString("en-CA");
 		const sameDay = tickState.runsTodayDate === today;
 		const carried = sameDay ? (tickState.runsToday ?? 0) : 0;
-		const nextRunsToday = origin.kind === "manual" ? carried : carried + 1;
+		const nextRunsToday = budgetExempt ? carried : carried + 1;
 		const updated: RoutineTickState = {
 			tickCount: tickState.tickCount + 1,
 			lastFiredAt: Date.now(),
@@ -198,15 +226,26 @@ export async function fireRoutine(
 			runs: tickState.runs ?? [],
 			runsToday: nextRunsToday,
 			runsTodayDate: today,
+			hookOnceDaily: tickState.hookOnceDaily ?? {},
 		};
+		const hookTrigger = routine.triggers[origin.index];
+		if (
+			request?.hookOnceKey &&
+			hookTrigger?.kind === "hook" &&
+			request.hookOnce === hookTrigger.once
+		) {
+			guard.commitHookFire(hookTrigger, updated, runtime, request.hookOnceKey, today);
+		}
+		removeDeferredHook(store, request?.deferredHookId);
 		store.tickState[routine.id] = updated;
-		await saveStore(store);
+		await saveStore(store, runtime.storeGeneration);
+		return "started";
 	} catch (err) {
 		guard.releaseRoutineTurn(runtime);
 		// Record the failed run synchronously — agent_end will not fire for
 		// a turn that never started.
 		recordRun(runtime, store, {
-			id: nanoid(),
+			id: runId,
 			routineId: routine.id,
 			startedAt,
 			endedAt: Date.now(),
@@ -218,6 +257,7 @@ export async function fireRoutine(
 		});
 		runtime.pendingRun = null;
 		console.error(`[pi-routines] fireRoutine '${routine.name}' (${routine.id}) failed:`, err);
+		return "error";
 	}
 }
 
@@ -252,8 +292,7 @@ export function recordRun(
 	while (runs.length > MAX_RUN_HISTORY) runs.shift();
 	ts.runs = runs;
 	// Fire-and-forget save — saveStore is best-effort and never throws.
-	void saveStore(store);
-	void runtime; // reserved for future debounce hook
+	void saveStore(store, runtime.storeGeneration);
 }
 
 /** Record an automatic fire that was dropped before opening an LLM turn. */
@@ -263,10 +302,11 @@ export function recordSkippedFire(
 	routine: Routine,
 	origin: RoutineFireOrigin,
 	reason: string,
+	runId = nanoid(),
 ): void {
 	const startedAt = Date.now();
 	recordRun(runtime, store, {
-		id: nanoid(),
+		id: runId,
 		routineId: routine.id,
 		startedAt,
 		endedAt: startedAt,

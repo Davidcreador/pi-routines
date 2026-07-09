@@ -93,11 +93,12 @@ function parseLimit(args: string): { target: string; limit: number } {
 }
 
 function formatTable(runs: RoutineRun[]): string {
-	const headers = ["TIME", "TRIGGER", "STATUS", "DURATION", "SNIPPET"];
+	const headers = ["TIME", "TRIGGER", "STATUS", "REASON", "DURATION", "SNIPPET"];
 	const rows = runs.map((r) => [
 		formatTime(r.startedAt),
 		describeTrigger(r),
 		colourStatus(r.status),
+		r.skipReason ?? "",
 		formatDuration(r.durationMs),
 		r.snippet,
 	]);

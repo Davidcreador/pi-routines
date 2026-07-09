@@ -18,6 +18,7 @@ import { resolveRoutine } from "../tools/_mutate.ts";
 import type { RoutineRuntimeState } from "../types.ts";
 
 const SYSTEM_MSG_TYPE = "pi-routines/system";
+const MIN_CRON_MS = 60 * 1000;
 const MAX_CRON_MS = 60 * 60 * 1000;
 const NAME_RE = /^[a-z0-9-]+$/;
 
@@ -32,10 +33,10 @@ function send(pi: ExtensionAPI, text: string): void {
 /**
  * Build a `"*" + "/N * * * *"` cron schedule clamped to 1..60 minutes.
  * (Star-slash-N is split here to avoid closing the JSDoc block.)
- * Rounds down toward the nearest minute.
+ * Callers validate that the interval is an exact divisor of one hour.
  */
 function cronSchedule(intervalMs: number): string {
-	const minutes = Math.max(1, Math.min(60, Math.floor(intervalMs / 60_000)));
+	const minutes = intervalMs / 60_000;
 	return `*/${minutes} * * * *`;
 }
 
@@ -103,6 +104,16 @@ export function registerRoutineExportCronCommand(
 					`Interval ${pulse.intervalHuman} is longer than 60m; cron's */N syntax ` +
 						"can't represent it cleanly. Set a daily cron manually, e.g. `0 9 * * *`, " +
 						"pointing at the prompt file this command would have written.",
+				);
+				return;
+			}
+			const minutes = pulse.intervalMs / 60_000;
+			if (pulse.intervalMs < MIN_CRON_MS || !Number.isInteger(minutes) || 60 % minutes !== 0) {
+				send(
+					pi,
+					`Interval ${pulse.intervalHuman} cannot be represented exactly by a portable ` +
+						"5-field cron schedule. Use launchd/systemd directly or choose a whole-minute " +
+						"interval that divides 60 (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, or 60m).",
 				);
 				return;
 			}

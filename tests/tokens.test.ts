@@ -58,6 +58,21 @@ describe("tokens", () => {
 		await fs.chmod(tokenFile, 0o644);
 		tokens._resetTokenCache();
 		await assert.rejects(() => tokens.verifyToken("r1", "anything"), /wider than 600/);
+		await assert.rejects(() => tokens.assertTokenStoreSafe(), /wider than 600/);
+	});
+
+	it("serializes concurrent token generation without lost entries or tmp files", async () => {
+		const ids = Array.from({ length: 10 }, (_, index) => `r${index}`);
+		const generated = await Promise.all(ids.map((id) => tokens.generateToken(id)));
+
+		for (let index = 0; index < ids.length; index++) {
+			assert.equal(await tokens.verifyToken(ids[index] ?? "", generated[index] ?? ""), true);
+		}
+		const entries = await fs.readdir(path.dirname(tokenFile));
+		assert.deepEqual(
+			entries.filter((entry) => entry.includes(".tmp.")),
+			[],
+		);
 	});
 
 	it("maskToken hides all but the first 8 chars", () => {

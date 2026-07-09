@@ -27,7 +27,7 @@ credentials, with state that never leaves your machine.
 - ⏯ **Pause / resume** — `/routine-pause` and `/routine-resume` keep the routine in the store with full run history but silence every fire path (scheduler / hooks / api → 423 Locked). Manual `/routine-run-now` bypasses the pause.
 - 🛡 **`maxRunsPerDay` soft cap** — opt-in per-routine daily limit; capped fires are recorded as `skipped` runs and **consume zero provider tokens** (gated before any LLM turn opens)
 - 🔇 **Silent mode** — quiet routines whose response is exactly `[~]` are suppressed from chat
-- 💾 **Persistent state** — atomic writes (`.tmp` → rename) with `.bak` rollback; corrupt JSON or missing files degrade gracefully to an empty store
+- 💾 **Persistent state** — serialized, generation-safe `0600` writes (`.tmp` → rename) with `.bak`; malformed routines are quarantined
 - 🧠 **LLM tools** — the agent can create / list / delete / update routines and persist arbitrary state across ticks
 - 🎛 **Slash commands** — full user-facing UI: `/routine`, `/routines`, `/routine-install`, `/routine-pause`, …
 - 🔁 **Hot-reload safe** — `globalThis.__piRoutinesCleanup` stops old timers + servers before re-arming
@@ -55,7 +55,7 @@ Anthropic's own [Claude Code Routines](https://code.claude.com/docs/en/routines)
 | Daily cap                | 5 / 15 / 25 by plan                           | Opt-in per-routine `maxRunsPerDay` (default: unlimited) |
 | Cost model               | Counts against subscription                   | Your own provider tokens via pi                     |
 | Privacy                  | Code + secrets uploaded to Anthropic          | Stays local                                         |
-| Discoverability          | Web UI + `/schedule`                          | 11 slash commands + 6 LLM tools + bundled skill     |
+| Discoverability          | Web UI + `/schedule`                          | 13 slash commands + 6 LLM tools + bundled skill     |
 | Manage from web GUI      | Yes                                           | No                                                  |
 
 Pick the cloud one when you need the routine to run while your laptop is closed. Pick `pi-routines` when you need sub-hourly cadences, session-lifecycle hooks, state across ticks, or on-device privacy.
@@ -64,7 +64,7 @@ Pick the cloud one when you need the routine to run while your laptop is closed.
 
 ## Requirements
 
-- [pi](https://github.com/earendil-works/pi-coding-agent) (`@earendil-works/pi-coding-agent`)
+- [pi](https://github.com/earendil-works/pi-coding-agent) ≥ 0.75.3
 - Node.js ≥ 22
 - [pnpm](https://pnpm.io/) (or npm / yarn — the lockfile is pnpm but any will work)
 - Optional: `gh` CLI for GitHub-triggered routines
@@ -159,7 +159,7 @@ delete persisted state: `rm ~/.pi/agent/extensions/routines/state.json`.
 # Ad-hoc pulse: every 30 seconds, do a thing
 /routine 30s remind me to drink water
 
-# Ad-hoc hook: on session shutdown, save my notes
+# Ad-hoc hook: capture shutdown context and summarize it next session
 /routine-on session_shutdown summarize what I did this session
 
 # Natural language: pi figures out the right trigger + writes a prompt
@@ -190,11 +190,11 @@ delete persisted state: `rm ~/.pi/agent/extensions/routines/state.json`.
 | `/routine-on <event> <prompt>` | Create a **hook** routine. Events: `session_start`, `agent_end`, `session_shutdown` |
 | `/schedule <natural language>` | LLM-powered routine creation — supports every trigger kind, including cron, oneoff, api, and github. e.g. `/schedule weekdays at 9am summarize my open PRs` |
 | `/routines` | List active routines (id, name, triggers, last status) |
-| `/routine-install <template>` | Install a bundled template by name |
+| `/routine-install <template> [owner/repo]` | Install a bundled template; GitHub placeholders require a repository |
 | `/routine-pause <id\|name>` | Pause a routine without deleting it (keeps tickState + run history) |
 | `/routine-resume <id\|name>` | Resume a paused routine |
 | `/routine-stop <id\|name>` | Stop and delete a routine |
-| `/routine-export-cron` | Export pulse routines as standalone prompt files + optional macOS launchd plists |
+| `/routine-export-cron <name>` | Export an exactly representable pulse routine as a prompt file + cron/launchd configuration |
 
 ### Run control & history
 
@@ -213,6 +213,7 @@ delete persisted state: `rm ~/.pi/agent/extensions/routines/state.json`.
 | `/routine-token generate <id\|name>` | Generate a bearer token (shown once) |
 | `/routine-token rotate <id\|name>` | Rotate the bearer token |
 | `/routine-token show <id\|name>` | Show token preview (first 8 chars only) |
+| `/routine-token revoke <id\|name>` | Revoke a routine's bearer token |
 
 API triggers accept both the native route and a Claude Code-style route:
 
@@ -235,13 +236,13 @@ prompt as `{apiArgs}` with shape `{"text":"..."}`.
 | `pomodoro`          | pulse 25m, 8×                    | Focus check-in: progress, rabbit holes, next 25-min suggestion.          |
 | `morning-briefing`  | `session_start` (once daily)     | Git log summary + todo file scan + 3-bullet day-plan.                    |
 | `morning-cron`      | cron `0 9 * * 1-5`               | Same shape as `morning-briefing` but fires on a real cron at 9am weekdays, capped at 1 run/day. |
-| `deploy-watch`      | pulse 5m                         | Monitors a deploy URL or process; alerts on failure or success.          |
-| `session-wrap`      | `session_shutdown`               | End-of-session summary: what shipped, open threads, next session.        |
-| `pr-babysitter`     | pulse 10m                        | Watches your open PR for new reviews/comments.                           |
-| `test-guardian`     | pulse 2m                         | Re-runs the failing test you're working on; alerts when it passes.       |
+| `deploy-watch`      | pulse 2m                         | Monitors a deploy URL or process; alerts on failure or success.          |
+| `session-wrap`      | deferred `session_shutdown`      | Captures the ended transcript and summarizes it at the next interactive start. |
+| `pr-babysitter`     | pulse 15m                        | Watches your open PR for new reviews/comments.                           |
+| `test-guardian`     | pulse 5m                         | Re-runs the failing test you're working on; alerts when it passes.       |
 | `api-webhook`       | api with `allowArgs: true`       | Receives a webhook payload and acts on it. Demonstrates `{apiArgs}`.     |
-| `oneoff-reminder`   | oneoff                           | Fires once at the timestamp you edit into the template, then disables.   |
-| `github-pr-review`  | github `pull_request.opened`     | First-pass review notes on every new PR. Requires `gh`. Demonstrates `{githubEvent}`. |
+| `oneoff-reminder`   | oneoff                           | Fires once at the timestamp you edit into the template, then marks that trigger spent. |
+| `github-pr-review`  | github `pull_request.opened`     | Install as `/routine-install github-pr-review owner/repo`. Requires `gh`. |
 
 ---
 
@@ -288,12 +289,13 @@ guide that pi auto-injects when relevant.
 | --------------------------------------------- | -------------------------------------------------------------------- |
 | `~/.pi/agent/extensions/routines/state.json`  | Persistent routines + per-routine tick state (atomic write + `.bak`) |
 | `~/.pi/agent/extensions/routines/tokens.json` | API bearer tokens, `0600` mode enforced                              |
-| `~/.pi/routines/prompts/<name>.md`            | `routine-export-cron` writes per-routine prompt files here           |
-| `~/.pi/routines/launchd/<name>.plist`         | `routine-export-cron` optionally writes macOS launchd plists         |
+| `~/.pi/routines/prompts/<name>.txt`           | `routine-export-cron` writes per-routine prompt files here           |
+| `~/.pi/routines/launchd/com.pi-routines.<name>.plist` | `routine-export-cron` writes macOS launchd plists          |
 
-State is **fault-tolerant**: corrupt JSON or missing file → empty store, log
-warning, continue. Disk-full / permission errors on save → log to stderr, keep
-running with in-memory state.
+State is **fault-tolerant**: corrupt JSON or missing file → empty store; valid
+JSON is shape-validated and invalid routines are ignored individually.
+Disk-full / permission errors on save → log to stderr, keep running with
+in-memory state. State and token files are written with owner-only `0600` mode.
 
 ---
 
@@ -301,9 +303,15 @@ running with in-memory state.
 
 - **One in-flight routine turn at a time** (`isRoutineTurnActive` flag). Routines
   queue if they overlap.
+- **Separate pi processes do not coordinate scheduling or writes.** Serialized
+  persistence protects reloads within one process; running the same routines in
+  multiple pi processes can still duplicate fires or overwrite state.
 - **Three-level recursion guard** — flag + input-source tag + depth check prevents
   a routine from triggering another routine.
-- **`session_shutdown` hooks fire on `reason: "quit"` only**, never on `"reload"`.
+- **`session_shutdown` hooks are deferred on real quit.** Pi disposes the
+  session after shutdown handlers, so the extension stores a bounded transcript
+  snapshot and runs the hook at the next interactive session. Reload does not
+  create a deferred fire; unreplayed snapshots expire after seven days.
 - **At most one `agent_end` hook fires per user-driven turn** — protects against
   loops when a routine's response triggers `agent_end` itself. Enforced both
   globally (across routines) and within a single routine's trigger list.
@@ -315,7 +323,8 @@ running with in-memory state.
 - **Print mode** (`pi --print`) registers tools but skips timers, widget, and hook
   fires — safe for one-shot CLI use.
 - **Hot-reload safe** — `globalThis.__piRoutinesCleanup` stops old timers + the HTTP
-  server before the new instance arms its own on `/reload`.
+  server before the new instance re-arms timers and restarts a previously running
+  API server on `/reload`.
 - **Silent mode** — routines marked `quiet: true` whose response is exactly `[~]` are
   suppressed from chat output (still counted as a tick; status recorded as `silent`).
 - **HTTP server defense-in-depth** — 127.0.0.1 bind, per-request loopback re-check,
@@ -345,7 +354,7 @@ pi-routines/
 ├── extensions/index.ts        # entry point — wires everything
 ├── src/
 │   ├── types.ts               # source of truth for all types + constants
-│   ├── store.ts               # atomic state.json read/write + v1→v2 migration
+│   ├── store.ts               # validated, serialized state.json + v1/v2→v3 migration
 │   ├── parser.ts              # interval / cron / oneoff parsing
 │   ├── scheduler.ts           # timer + queue management
 │   ├── executor.ts            # prompt assembly, fire, run recording
@@ -363,7 +372,7 @@ pi-routines/
 │   └── commands/              # 13 slash commands
 ├── templates/                 # 11 bundled routine templates
 ├── skills/routine/            # LLM-facing skill doc
-└── tests/                     # node:test suites (~170 tests)
+└── tests/                     # node:test regression suites
 ```
 
 ---

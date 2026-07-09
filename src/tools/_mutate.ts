@@ -22,6 +22,7 @@ import { describeTrigger, describeTriggers } from "../format.ts";
 import { nextCronFire, parseCron, parseInterval, parseOneOff } from "../parser.ts";
 import { queueEntryRoutineId, scheduleRoutine, unscheduleRoutine } from "../scheduler.ts";
 import { saveStore } from "../store.ts";
+import { revokeToken } from "../tokens.ts";
 import type {
 	ApiTrigger,
 	CronTrigger,
@@ -35,7 +36,7 @@ import type {
 	RoutineTrigger,
 } from "../types.ts";
 import { DEFAULT_GITHUB_POLL_MS, MIN_GITHUB_POLL_MS } from "../types.ts";
-import { restartWidgetRefresh } from "../widget.ts";
+import { restartWidgetRefresh, updateWidget } from "../widget.ts";
 import {
 	listRoutineNames as listRoutineNamesFromStore,
 	resolveRoutine as resolveFromStore,
@@ -50,6 +51,15 @@ const NAME_RE = /^[a-z0-9-]{1,32}$/;
 const MAX_ROUTINES = 20;
 /** Cap on the number of triggers any one routine may carry. */
 const MAX_TRIGGERS_PER_ROUTINE = 4;
+
+function validateTimezone(timezone: string | undefined): void {
+	if (!timezone) return;
+	try {
+		new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
+	} catch {
+		throw new Error(`Invalid IANA timezone '${timezone}'.`);
+	}
+}
 
 // ─── Raw input trigger shapes ────────────────────────────────────────────────
 //
@@ -167,16 +177,19 @@ export function listRoutineNames(runtime: RoutineRuntimeState): string {
 export function resolveTrigger(input: TriggerInput): RoutineTrigger {
 	switch (input.kind) {
 		case "pulse": {
+			if (input.timezone) {
+				throw new Error("pulse triggers do not support timezone; use a cron trigger");
+			}
 			const parsed = parseInterval(input.interval);
 			const out: PulseTrigger = {
 				kind: "pulse",
 				intervalMs: parsed.ms,
 				intervalHuman: parsed.human,
 			};
-			if (input.timezone) out.timezone = input.timezone;
 			return out;
 		}
 		case "cron": {
+			validateTimezone(input.timezone);
 			// Validate by parsing + computing the next fire (also catches
 			// "no fire within 4 years" early).
 			parseCron(input.expr);
@@ -186,6 +199,7 @@ export function resolveTrigger(input: TriggerInput): RoutineTrigger {
 			return out;
 		}
 		case "oneoff": {
+			validateTimezone(input.timezone);
 			// parseOneOff throws on past timestamps and unparseable strings.
 			parseOneOff(input.fireAtIso, input.timezone);
 			const out: OneOffTrigger = { kind: "oneoff", fireAtIso: input.fireAtIso };
@@ -203,10 +217,23 @@ export function resolveTrigger(input: TriggerInput): RoutineTrigger {
 			return out;
 		}
 		case "github": {
-			if (typeof input.repo !== "string" || !input.repo.includes("/")) {
+			if (typeof input.repo !== "string" || !/^[^/?#\s]+\/[^/?#\s]+$/.test(input.repo)) {
 				throw new Error(
 					`github trigger requires 'repo' in 'owner/name' form (got '${input.repo}').`,
 				);
+			}
+			const filter = input.filter;
+			if (filter?.branches?.length && input.event !== "push") {
+				throw new Error("github branch filters are only valid for push events");
+			}
+			if (filter?.labels?.length && !input.event.startsWith("pull_request.")) {
+				throw new Error("github label filters are only valid for pull_request events");
+			}
+			if (filter?.mergedOnly && input.event !== "pull_request.closed") {
+				throw new Error("mergedOnly is only valid for pull_request.closed");
+			}
+			if (filter?.branches?.some((branch) => !branch.trim())) {
+				throw new Error("github branch filters cannot contain empty names");
 			}
 			let pollIntervalMs = DEFAULT_GITHUB_POLL_MS;
 			if (input.pollInterval) {
@@ -251,6 +278,9 @@ export async function createRoutine(
 		return {
 			error: `Invalid name '${name}'. Use lowercase letters, digits, and hyphens (max 32 chars).`,
 		};
+	}
+	if (typeof prompt !== "string" || !prompt.trim()) {
+		return { error: "Prompt must contain at least one non-whitespace character." };
 	}
 
 	// Assemble the raw trigger list (singular + plural inputs are both accepted).
@@ -346,7 +376,7 @@ export async function createRoutine(
 	}
 
 	runtime.store.routines[routine.id] = routine;
-	await saveStore(runtime.store);
+	await saveStore(runtime.store, runtime.storeGeneration);
 
 	scheduleRoutine(routine, runtime, pi, getCtx);
 	restartWidgetRefresh(runtime, getCtx);
@@ -390,11 +420,19 @@ export async function deleteRoutine(
 	runtime.triggerOrigin.delete(routine.id);
 	runtime.apiArgs?.delete(routine.id);
 	runtime.githubEvents?.delete(routine.id);
+	runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
+		(item) => item.routineId !== routine.id,
+	);
 	// Drop the routine from any pending queue position.
 	runtime.queue = runtime.queue.filter((entry) => queueEntryRoutineId(entry) !== routine.id);
 	delete runtime.store.routines[routine.id];
 	delete runtime.store.tickState[routine.id];
-	await saveStore(runtime.store);
+	await saveStore(runtime.store, runtime.storeGeneration);
+	try {
+		await revokeToken(routine.id);
+	} catch (err) {
+		console.warn(`[pi-routines] could not revoke token for '${routine.name}':`, err);
+	}
 	return { deletedId: routine.id, deletedName: routine.name };
 }
 
@@ -440,6 +478,7 @@ export async function setPaused(
 	}
 	if (paused) routine.paused = true;
 	else delete routine.paused;
-	await saveStore(runtime.store);
+	await saveStore(runtime.store, runtime.storeGeneration);
+	if (runtime.lastUiCtx) updateWidget(runtime, runtime.lastUiCtx);
 	return { id: routine.id, name: routine.name, paused, changed: true };
 }

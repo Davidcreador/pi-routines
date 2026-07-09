@@ -3,6 +3,33 @@
 All notable changes to `pi-routines` are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- Shutdown hooks are durably deferred to the next interactive session with a
+  bounded transcript snapshot instead of starting an LLM turn during teardown;
+  stale snapshots expire after seven days and newer wraps supersede older ones.
+- State and token writes are serialized; state generations prevent stale
+  extension instances from overwriting data after reload.
+- Persisted stores are shape-validated, invalid routines are quarantined, and
+  state/token files use owner-only permissions.
+- GitHub polling now handles missing cursors without page-wide replay, supports
+  real branch filtering with per-branch cursors, excludes pull requests from
+  issue events, preserves successful branch polls during partial failure,
+  validates repository names, and bounds `gh` runtime/output.
+- Queue entries carry stable run IDs and complete payload metadata; dropped
+  work receives an auditable skipped-run record.
+- Hook `once` state is committed per trigger only after successful start.
+- Routine deletion revokes API tokens and removes deferred work.
+
+### Changed
+
+- API responses return the same run ID used by run history.
+- A running local API server restarts automatically after extension reload.
+- Cron export rejects intervals that POSIX cron cannot represent exactly.
+- GitHub template installation accepts an explicit `owner/repo`.
+
 ## 0.4.0 — 2026-07-06
 
 Minor release: lifecycle fixes and Claude Code Routines parity improvements.

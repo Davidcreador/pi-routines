@@ -1,7 +1,7 @@
 {
   "name": "session-wrap",
-  "description": "Summarize and save session notes on shutdown",
+  "description": "Capture shutdown context and summarize it at the next interactive session",
   "trigger": { "kind": "hook", "event": "session_shutdown", "once": "per_session" },
-  "prompt": "This session is ending. Write a brief session summary:\n1. What was accomplished (2-3 bullets)\n2. Key decisions made (if any)\n3. What's unfinished / next steps\n\nSave to Engram with title 'Session wrap {date}' and type 'learning'. If Engram is unavailable, write to ~/.pi/routines/logs/session-{date}-{time}.md instead.\n\nKeep it under 200 words.",
+  "prompt": "Summarize the previous session from the deferred shutdown transcript above:\n1. What was accomplished (2-3 bullets)\n2. Key decisions made (if any)\n3. What's unfinished / next steps\n\nSave to Engram with a title using the previous session end date shown above and type 'learning'. If Engram is unavailable, write a dated file under ~/.pi/routines/logs/ instead.\n\nKeep it under 200 words.",
   "quiet": false
 }

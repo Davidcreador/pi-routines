@@ -53,6 +53,8 @@ export async function isToolOnPath(tool: string, env: ProbeEnv = process.env): P
 					// On Windows, fs.access(X_OK) is unreliable — existence is
 					// enough since PATHEXT entries are executable by definition.
 					await fs.access(candidate, fs.constants.F_OK);
+					const stat = await fs.stat(candidate);
+					if (!stat.isFile()) continue;
 				} else {
 					await fs.access(candidate, fs.constants.X_OK);
 					const stat = await fs.stat(candidate);

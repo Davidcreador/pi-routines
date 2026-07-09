@@ -9,9 +9,9 @@ const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-srv-"));
 const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
-const { startServer, stopServer } = await import("../src/server.ts");
+const { restartServerIfConfigured, startServer, stopServer } = await import("../src/server.ts");
 const tokens = await import("../src/tokens.ts");
-const { emptyStore } = await import("../src/store.ts");
+const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
 
 import type { Routine, RoutineRuntimeState } from "../src/types.ts";
 
@@ -66,8 +66,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
 	await stopServer(runtime);
-	// Paused-fire audit records persist via fire-and-forget saveStore.
-	await new Promise((resolve) => setTimeout(resolve, 10));
+	await flushStoreWrites();
 });
 
 async function request(opts: {
@@ -104,6 +103,7 @@ describe("server — auth", () => {
 		assert.equal(runtime.queue.length, 1);
 		assert.equal(typeof runtime.queue[0], "object");
 		assert.equal(typeof runtime.queue[0] === "object" ? runtime.queue[0].routineId : "", "r1");
+		assert.equal(runtime.queue[0]?.runId, json.runId);
 	});
 
 	it("401 on wrong token", async () => {
@@ -125,12 +125,12 @@ describe("server — auth", () => {
 		assert.equal(res.status, 401);
 	});
 
-	it("404 on unknown routine", async () => {
+	it("401 on unknown routine without leaking existence", async () => {
 		const res = await request({
 			pathname: "/routines/nope/trigger",
 			headers: { authorization: "Bearer anything" },
 		});
-		assert.equal(res.status, 404);
+		assert.equal(res.status, 401);
 	});
 
 	it("404 if routine exists but has no api trigger", async () => {
@@ -308,5 +308,17 @@ describe("server — paused routines", () => {
 			headers: { authorization: `Bearer ${token}` },
 		});
 		assert.equal(res.status, 202);
+	});
+});
+
+describe("server — reload lifecycle", () => {
+	it("restarts on the configured port when cleanup preserves intent", async () => {
+		const previousPort = port;
+		await stopServer(runtime, { preserveIntent: true });
+		runtime = makeRuntime();
+
+		const restarted = await restartServerIfConfigured(runtime, { pi: fakePi, getCtx });
+
+		assert.equal(restarted, previousPort);
 	});
 });

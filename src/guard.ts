@@ -69,9 +69,25 @@ export function resetSessionHookFires(runtime: RoutineRuntimeState): void {
 	getSessionHookFires(runtime).clear();
 }
 
-/** Mark a per-session hook as already queued/fired in this session. */
+/** Mark a per-session hook as successfully started in this session. */
 export function markSessionHookFired(runtime: RoutineRuntimeState, key: string): void {
 	getSessionHookFires(runtime).add(key);
+}
+
+/** Commit a hook's once-marker after a successful start (or durable deferral). */
+export function commitHookFire(
+	trigger: HookTrigger,
+	tickState: RoutineTickState,
+	runtime: RoutineRuntimeState,
+	key: string,
+	dateLocal = new Date().toLocaleDateString("en-CA"),
+): void {
+	if (trigger.once === "per_session") {
+		markSessionHookFired(runtime, key);
+	} else if (trigger.once === "daily") {
+		tickState.hookOnceDaily ??= {};
+		tickState.hookOnceDaily[key] = dateLocal;
+	}
 }
 
 function getSessionHookFires(runtime: RoutineRuntimeState): Set<string> {
@@ -86,7 +102,7 @@ function getSessionHookFires(runtime: RoutineRuntimeState): Set<string> {
  *   - `"daily"`       — fire at most once per local calendar day. Compares
  *                       today's `YYYY-MM-DD` (via `toLocaleDateString("en-CA")`,
  *                       which produces ISO-formatted local dates) against the
- *                       stored `lastFiredDateLocal`.
+ *                       per-trigger `hookOnceDaily` marker.
  *   - `"per_session"` — fire at most once per pi session. This must use
  *                       in-memory runtime state because `tickState` is persisted
  *                       across sessions.
@@ -109,13 +125,14 @@ export function shouldFireHook(
 	if (!once) return true;
 
 	if (once === "per_session") {
-		if (!runtime || !sessionKey) return true;
+		if (!runtime || !sessionKey) return false;
 		return !getSessionHookFires(runtime).has(sessionKey);
 	}
 	if (!tickState) return true;
 	if (once === "daily") {
+		if (!sessionKey) return false;
 		const today = new Date().toLocaleDateString("en-CA");
-		return tickState.lastFiredDateLocal !== today;
+		return tickState.hookOnceDaily?.[sessionKey] !== today;
 	}
 	return true;
 }

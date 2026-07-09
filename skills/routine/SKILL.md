@@ -45,7 +45,10 @@ commands when the user is driving; use tools when the LLM is reacting.
   - `session_start` — onboarding, daily briefing (pair with `once: "daily"`).
   - `agent_end` — runs after every assistant turn ends. Rare; usually too noisy.
     At most one routine in the whole store may attach to `agent_end`.
-  - `session_shutdown` — wrap-up, save notes (pair with `once: "per_session"`).
+  - `session_shutdown` — wrap-up/save notes (pair with `once: "per_session"`).
+    Pi cannot finish an LLM turn during teardown, so the extension persists a
+    bounded transcript snapshot and runs this hook at the next interactive start.
+    Unreplayed snapshots expire after seven days.
 - **`api`** — POST to `127.0.0.1:7424/routines/<id>/trigger` or the
   Claude-style `/fire` route with a bearer token.
   Server is off by default — instruct the user to run `/routine-server start` and
@@ -87,13 +90,13 @@ Install any of these with `/routine-install <name>`.
 | `morning-briefing` | session_start daily           | no    | Git log + todo summary at first start.     |
 | `morning-cron`     | cron `0 9 * * 1-5`, day-cap 1 | no    | Same shape but on a real cron, weekdays only. |
 | `pomodoro`         | pulse 25m, max 8              | no    | Focus check-in; auto-stops after 8 ticks.  |
-| `deploy-watch`     | pulse 5m                      | yes   | Self-deletes when deploy finishes.         |
-| `session-wrap`     | session_shutdown              | no    | End-of-session summary.                    |
-| `pr-babysitter`    | pulse 10m                     | yes   | Requires `gh`. Watches your open PRs.      |
-| `test-guardian`    | pulse 2m                      | yes   | Re-runs the failing test during TDD.       |
+| `deploy-watch`     | pulse 2m                      | yes   | Self-deletes when deploy finishes.         |
+| `session-wrap`     | deferred session_shutdown     | no    | Summarizes the ended transcript next session. |
+| `pr-babysitter`    | pulse 15m                     | yes   | Requires `gh`. Watches your open PRs.      |
+| `test-guardian`    | pulse 5m                      | yes   | Re-runs the failing test during TDD.       |
 | `api-webhook`      | api with allowArgs            | no    | Demonstrates `{apiArgs}`. Tell the user how to start the server + generate a token. |
 | `oneoff-reminder`  | oneoff (placeholder timestamp)| no    | User edits `fireAtIso` before installing.  |
-| `github-pr-review` | github pull_request.opened    | no    | Demonstrates `{githubEvent}`. Requires `gh` and an edited `repo`. |
+| `github-pr-review` | github pull_request.opened    | no    | Install with `owner/repo`; requires `gh`. |
 
 `requiredTools` is a warning at install time, not a block — the user can
 proceed without `gh` if they accept the routine will probably fail.
@@ -150,6 +153,7 @@ Two robustness primitives that come up often:
   is streaming is queued (max depth 3) and drained on the next `agent_end`.
 - **Print mode (`pi --print`) skips timers, widget updates, and hook fires.**
   Routines are inert in non-interactive runs, though tools still register.
+  Deferred shutdown hooks remain pending until an interactive session starts.
 - **Sessions don't coordinate.** Two open pi sessions each schedule their own
   pulse timers from the shared `state.json`. Expect duplicate fires if the
   same routine is active in both.
@@ -160,6 +164,7 @@ Two robustness primitives that come up often:
 - **`api` and `github` triggers require setup.** `api` needs the user to start
   the local server (`/routine-server start`) and generate a token
   (`/routine-token generate <name>`). `github` needs `gh` installed and
-  authenticated. Mention this in your response when you create one.
+  authenticated. Mention this in your response when you create one. A running
+  API server is restarted automatically after `/reload`.
 - **`agent_end` is single-routine globally** — only one routine in the store
   may attach to it. Tell the user if they hit the conflict.

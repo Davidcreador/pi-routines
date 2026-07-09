@@ -12,7 +12,9 @@ const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
 const stateFile = path.join(tmpHome, ".pi/agent/extensions/routines/state.json");
-const { emptyStore, migrateV1ToV2, loadStore, saveStore } = await import("../src/store.ts");
+const { beginStoreGeneration, emptyStore, migrateV1ToV2, loadStore, saveStore } = await import(
+	"../src/store.ts"
+);
 const { SCHEMA_VERSION } = await import("../src/types.ts");
 
 after(async () => {
@@ -30,6 +32,7 @@ describe("emptyStore", () => {
 		const s = emptyStore();
 		assert.deepEqual(s.routines, {});
 		assert.deepEqual(s.tickState, {});
+		assert.deepEqual(s.deferredHooks, []);
 		assert.equal(s.schemaVersion, SCHEMA_VERSION);
 	});
 	it("returns a fresh object each call", () => {
@@ -132,7 +135,7 @@ describe("loadStore (filesystem)", () => {
 		assert.equal(written.schemaVersion, SCHEMA_VERSION);
 	});
 
-	it("v2 file: no migration, no .v1.bak written", async () => {
+	it("current-schema file: no migration, no .v1.bak written", async () => {
 		await clearState();
 		await fs.mkdir(path.dirname(stateFile), { recursive: true });
 		await saveStore(emptyStore()); // produces a clean v2 file
@@ -143,12 +146,125 @@ describe("loadStore (filesystem)", () => {
 		await assert.rejects(fs.access(`${stateFile}.v1.bak`));
 	});
 
+	it("migrates a v2 daily hook marker and initializes deferred hooks", async () => {
+		await clearState();
+		await fs.mkdir(path.dirname(stateFile), { recursive: true });
+		await fs.writeFile(
+			stateFile,
+			JSON.stringify({
+				schemaVersion: 2,
+				routines: {
+					daily: {
+						id: "daily",
+						name: "daily",
+						prompt: "run",
+						triggers: [{ kind: "hook", event: "session_start", once: "daily" }],
+						context: "session",
+						quiet: false,
+						createdAt: 1,
+					},
+				},
+				tickState: {
+					daily: {
+						tickCount: 1,
+						lastFiredAt: 1,
+						lastFiredDateLocal: "2026-07-09",
+						userState: {},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const loaded = await loadStore();
+
+		assert.equal(loaded.schemaVersion, 3);
+		assert.deepEqual(loaded.deferredHooks, []);
+		assert.equal(loaded.tickState.daily?.hookOnceDaily?.["daily:session_start:0"], "2026-07-09");
+	});
+
 	it("corrupt file: falls back to emptyStore", async () => {
 		await clearState();
 		await fs.mkdir(path.dirname(stateFile), { recursive: true });
 		await fs.writeFile(stateFile, "{not json", "utf8");
 		const s = await loadStore();
 		assert.deepEqual(s.routines, {});
+	});
+
+	it("quarantines malformed routines while retaining valid entries", async () => {
+		await clearState();
+		await fs.mkdir(path.dirname(stateFile), { recursive: true });
+		await fs.writeFile(
+			stateFile,
+			JSON.stringify({
+				schemaVersion: SCHEMA_VERSION,
+				routines: {
+					valid: {
+						id: "valid",
+						name: "valid",
+						prompt: "run",
+						triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
+						context: "session",
+						quiet: false,
+						createdAt: 1,
+					},
+					broken: {
+						id: "broken",
+						name: "broken",
+						prompt: "run",
+						triggers: null,
+						context: "session",
+						quiet: false,
+						createdAt: 1,
+					},
+				},
+				tickState: {},
+				deferredHooks: [],
+			}),
+			"utf8",
+		);
+
+		const loaded = await loadStore();
+		assert.deepEqual(Object.keys(loaded.routines), ["valid"]);
+		assert.ok(loaded.tickState.valid);
+	});
+
+	it("refuses unsupported future schema versions", async () => {
+		await clearState();
+		await fs.mkdir(path.dirname(stateFile), { recursive: true });
+		await fs.writeFile(
+			stateFile,
+			JSON.stringify({ schemaVersion: SCHEMA_VERSION + 1, routines: { unsafe: {} } }),
+			"utf8",
+		);
+		const loaded = await loadStore();
+		assert.deepEqual(loaded.routines, {});
+	});
+
+	it("drops oversized persisted user state during sanitization", async () => {
+		await clearState();
+		const store = emptyStore();
+		store.routines.large = {
+			id: "large",
+			name: "large",
+			prompt: "run",
+			triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
+			context: "session",
+			quiet: false,
+			createdAt: 1,
+		};
+		store.tickState.large = {
+			tickCount: 1,
+			lastFiredAt: 1,
+			lastFiredDateLocal: "2026-07-09",
+			userState: { data: "x".repeat(5000) },
+		};
+		await fs.mkdir(path.dirname(stateFile), { recursive: true });
+		await fs.writeFile(stateFile, JSON.stringify(store), "utf8");
+
+		const loaded = await loadStore();
+
+		assert.deepEqual(loaded.tickState.large?.userState, {});
 	});
 });
 
@@ -206,5 +322,72 @@ describe("saveStore — concurrent writes", () => {
 			[],
 			`no .tmp.* files should remain after writes settle; got: ${stray.join(",")}`,
 		);
+	});
+
+	it("serializes writes in invocation order", async () => {
+		await clearState();
+		const first = emptyStore();
+		first.routines.first = {
+			id: "first",
+			name: "first",
+			prompt: "first",
+			triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
+			context: "session",
+			quiet: false,
+			createdAt: 1,
+		};
+		const second = emptyStore();
+		second.routines.second = {
+			id: "second",
+			name: "second",
+			prompt: "second",
+			triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
+			context: "session",
+			quiet: false,
+			createdAt: 2,
+		};
+
+		await Promise.all([saveStore(first), saveStore(second)]);
+		const written = JSON.parse(await fs.readFile(stateFile, "utf8"));
+		assert.deepEqual(Object.keys(written.routines), ["second"]);
+	});
+
+	it("discards queued writes from stale extension generations", async () => {
+		await clearState();
+		const staleGeneration = beginStoreGeneration();
+		const stale = emptyStore();
+		stale.routines.stale = {
+			id: "stale",
+			name: "stale",
+			prompt: "stale",
+			triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
+			context: "session",
+			quiet: false,
+			createdAt: 1,
+		};
+		const staleWrite = saveStore(stale, staleGeneration);
+
+		const currentGeneration = beginStoreGeneration();
+		const current = emptyStore();
+		current.routines.current = {
+			id: "current",
+			name: "current",
+			prompt: "current",
+			triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
+			context: "session",
+			quiet: false,
+			createdAt: 2,
+		};
+		await Promise.all([staleWrite, saveStore(current, currentGeneration)]);
+
+		const written = JSON.parse(await fs.readFile(stateFile, "utf8"));
+		assert.deepEqual(Object.keys(written.routines), ["current"]);
+	});
+
+	it("writes state and backup with owner-only permissions", async () => {
+		await clearState();
+		await saveStore(emptyStore());
+		assert.equal((await fs.stat(stateFile)).mode & 0o777, 0o600);
+		assert.equal((await fs.stat(`${stateFile}.bak`)).mode & 0o777, 0o600);
 	});
 });

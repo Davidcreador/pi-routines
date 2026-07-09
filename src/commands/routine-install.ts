@@ -110,10 +110,14 @@ export function registerRoutineInstallCommand(
 				.map((name) => ({ value: name, label: name }));
 		},
 		async handler(args: string): Promise<void> {
-			const name = args.trim();
+			const [name = "", repoOverride, ...extra] = args.trim().split(/\s+/).filter(Boolean);
 			if (!name) {
 				const available = listTemplateNames().join(", ") || "(none)";
-				send(pi, `Usage: /routine-install <template>\nAvailable: ${available}`);
+				send(pi, `Usage: /routine-install <template> [owner/repo]\nAvailable: ${available}`);
+				return;
+			}
+			if (extra.length > 0) {
+				send(pi, "Usage: /routine-install <template> [owner/repo]");
 				return;
 			}
 			if (!NAME_RE.test(name)) {
@@ -156,6 +160,23 @@ export function registerRoutineInstallCommand(
 			if (template.trigger) triggers.push(template.trigger as TriggerInput);
 			if (template.triggers && template.triggers.length > 0) {
 				for (const t of template.triggers) triggers.push(t as TriggerInput);
+			}
+			let usedRepoOverride = false;
+			for (const trigger of triggers) {
+				if (trigger.kind !== "github" || trigger.repo.toLowerCase() !== "owner/name") continue;
+				if (!repoOverride || !/^[^/?#\s]+\/[^/?#\s]+$/.test(repoOverride)) {
+					send(
+						pi,
+						`Template '${name}' needs a repository: ` + `/routine-install ${name} owner/repo`,
+					);
+					return;
+				}
+				trigger.repo = repoOverride;
+				usedRepoOverride = true;
+			}
+			if (repoOverride && !usedRepoOverride) {
+				send(pi, `Template '${name}' does not accept a repository override.`);
+				return;
 			}
 
 			const result = await createRoutine(

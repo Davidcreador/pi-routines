@@ -6,6 +6,8 @@
  * the JSDoc here as the contract.
  */
 
+import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 // ─── Tiers ───────────────────────────────────────────────────────────────────
@@ -22,9 +24,6 @@ export interface PulseTrigger {
 	intervalMs: number;
 	/** Original human-readable string, e.g. "5m", "1h30m". */
 	intervalHuman: string;
-	/** Optional IANA timezone, e.g. "America/Los_Angeles". Reserved for
-	 *  cron-equivalent semantics; ignored by the simple interval scheduler. */
-	timezone?: string;
 }
 
 /**
@@ -113,6 +112,8 @@ export interface GithubTrigger {
 	};
 	/** Last-seen event id. */
 	cursor?: string;
+	/** Last-seen commit sha per filtered branch. */
+	branchCursors?: Record<string, string>;
 }
 
 /** Union of all trigger kinds. */
@@ -168,8 +169,7 @@ export interface Routine {
 	 * When `true`, the routine is suspended: timers stay armed for cheap
 	 * /reload behaviour, but `enqueueTriggerFire`, hook firing, and the
 	 * HTTP server all short-circuit and record a `"skipped"` run with
-	 * reason `"paused"`. Resume with `/routine-resume` or the upcoming
-	 * `RoutinePause`/`RoutineResume` tools.
+	 * reason `"paused"`. Resume with `/routine-resume` or `RoutineResume`.
 	 */
 	paused?: boolean;
 	/** Epoch millis of creation. */
@@ -203,6 +203,8 @@ export interface RoutineTickState {
 	runsToday?: number;
 	/** Local ISO date (`YYYY-MM-DD`) the {@link runsToday} counter applies to. */
 	runsTodayDate?: string;
+	/** Per-hook-trigger local date for `once: "daily"` semantics. */
+	hookOnceDaily?: Record<string, string>;
 }
 
 /**
@@ -228,8 +230,8 @@ export interface RoutineRun {
 	/** Outcome classification. */
 	status: "success" | "error" | "skipped" | "silent";
 	/**
-	 * Optional reason for `"skipped"` runs (e.g. `"paused"`, `"daily cap reached"`,
-	 * `"once: daily already fired"`). Omitted for non-skipped statuses.
+	 * Optional reason for `"skipped"` runs (e.g. `"paused"` or
+	 * `"daily cap reached"`). Omitted for non-skipped statuses.
 	 */
 	skipReason?: string;
 	/** Index into `routine.triggers` that fired; `-1` for manual. */
@@ -246,19 +248,35 @@ export interface RoutineFireOrigin {
 	kind: RoutineTrigger["kind"] | "manual";
 }
 
-/**
- * FIFO queue entry. Older code/tests may still push a bare routine id and set
- * `triggerOrigin` separately; object entries carry per-fire payloads so API and
- * GitHub events can queue multiple independent fires for the same routine.
- */
-export type RoutineQueueEntry =
-	| string
-	| {
-			routineId: string;
-			origin: RoutineFireOrigin;
-			apiArgs?: Record<string, unknown>;
-			githubEvent?: Record<string, unknown>;
-	  };
+/** FIFO queue entry carrying all metadata for one independent fire. */
+export interface RoutineQueueEntry {
+	routineId: string;
+	runId: string;
+	origin: RoutineFireOrigin;
+	apiArgs?: Record<string, unknown>;
+	githubEvent?: Record<string, unknown>;
+	/** Extra bounded context, used by deferred shutdown hooks. */
+	contextNote?: string;
+	/** Hook key/once mode committed only after the turn starts successfully. */
+	hookOnceKey?: string;
+	hookOnce?: HookTrigger["once"];
+	/** Persisted deferred hook removed after successful fire start. */
+	deferredHookId?: string;
+}
+
+/** Persisted shutdown hook replayed at the next interactive session. */
+export interface DeferredHookFire {
+	id: string;
+	routineId: string;
+	triggerIndex: number;
+	endedSessionId: string;
+	deferredAt: number;
+	endedSessionCwd: string;
+	endedDateLocal: string;
+	endedTimeLocal: string;
+	transcript: string;
+	transcriptTruncated?: boolean;
+}
 
 // ─── Persisted store shape ───────────────────────────────────────────────────
 
@@ -270,6 +288,8 @@ export interface RoutineStore {
 	routines: Record<string, Routine>;
 	/** Keyed by {@link Routine.id}. */
 	tickState: Record<string, RoutineTickState>;
+	/** Shutdown hooks waiting for the next interactive session. */
+	deferredHooks: DeferredHookFire[];
 }
 
 // ─── Non-persisted runtime state ─────────────────────────────────────────────
@@ -285,6 +305,8 @@ export interface RoutineRuntimeState {
 	timers: Map<string, Array<ReturnType<typeof setInterval> | null>>;
 	/** routine fires waiting for an idle slot (FIFO). */
 	queue: RoutineQueueEntry[];
+	/** Store writer generation; stale extension instances cannot overwrite disk. */
+	storeGeneration?: number;
 	/** Recursion guard — set true while a routine turn is in flight. */
 	isRoutineTurnActive: boolean;
 	/** Name of the currently executing routine (for widget/suppressor labels). */
@@ -334,6 +356,7 @@ export interface RoutineRuntimeState {
 		startedAt: number;
 		snippet: string;
 		status: RoutineRun["status"];
+		deferredHookId?: string;
 	} | null;
 }
 
@@ -402,9 +425,8 @@ export const MAX_QUEUE_DEPTH = 3;
 /** Max per-routine userState size in bytes (JSON.stringify). */
 export const MAX_USER_STATE_BYTES = 2048;
 
-/** Current persisted-store schema version. v1 had no field; v2 introduces
- *  `triggers: RoutineTrigger[]` and adds `cron` + `oneoff` kinds. */
-export const SCHEMA_VERSION = 2 as const;
+/** Current persisted-store schema version. v3 adds deferred shutdown hooks. */
+export const SCHEMA_VERSION = 3 as const;
 
 /** Window within which fires from distinct triggers on the same routine
  *  collapse into a single enqueue (multi-trigger dedup). */
@@ -415,6 +437,15 @@ export const MAX_RUN_HISTORY = 20;
 
 /** Max chars of assistant response captured into {@link RoutineRun.snippet}. */
 export const SNIPPET_MAX_CHARS = 200;
+
+/** Max deferred shutdown hooks retained across sessions. */
+export const MAX_DEFERRED_HOOKS = 5;
+
+/** Deferred shutdown hooks expire after seven days without an interactive replay. */
+export const MAX_DEFERRED_AGE_MS = 7 * 24 * 60 * 60_000;
+
+/** Max UTF-8 bytes retained from an ended session transcript. */
+export const MAX_DEFERRED_TRANSCRIPT_BYTES = 8192;
 
 /** Min poll interval for github triggers (rate-limit safety floor). */
 export const MIN_GITHUB_POLL_MS = 60_000;
@@ -427,11 +458,9 @@ export const MAX_GITHUB_BACKOFF_MS = 30 * 60_000;
 
 /**
  * Absolute path of the persisted state file.
- * Falls back to `/tmp/pi-routines-state.json` when `HOME` is unset.
+ * Uses the OS home directory when `HOME` is unset.
  */
-export const STATE_FILE: string = process.env.HOME
-	? `${process.env.HOME}/.pi/agent/extensions/routines/state.json`
-	: "/tmp/pi-routines-state.json";
+export const STATE_FILE: string = `${process.env.HOME || homedir()}/.pi/agent/extensions/routines/state.json`;
 
 /** Directory containing bundled routine templates. */
-export const TEMPLATES_DIR: string = new URL("../templates", import.meta.url).pathname;
+export const TEMPLATES_DIR: string = fileURLToPath(new URL("../templates", import.meta.url));

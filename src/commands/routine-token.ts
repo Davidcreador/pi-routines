@@ -53,6 +53,17 @@ export function registerRoutineTokenCommand(pi: ExtensionAPI, runtime: RoutineRu
 				});
 				return;
 			}
+			if (
+				(sub === "generate" || sub === "rotate") &&
+				!routine.triggers.some((trigger) => trigger.kind === "api")
+			) {
+				pi.sendMessage({
+					customType: SYSTEM_MSG_TYPE,
+					content: `Error: '${routine.name}' has no api trigger, so it cannot use a bearer token.`,
+					display: true,
+				});
+				return;
+			}
 
 			switch (sub) {
 				case "generate": {
