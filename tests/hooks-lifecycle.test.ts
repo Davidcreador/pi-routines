@@ -86,10 +86,11 @@ function fakeCtx(
 		sessionId?: string;
 		messages?: Array<{ role: string; text: string }>;
 		isIdle?: () => boolean;
+		hasUI?: boolean;
 	} = {},
 ): ExtensionContext {
 	return {
-		hasUI: true,
+		hasUI: options.hasUI ?? true,
 		cwd: "/tmp/project",
 		isIdle: options.isIdle ?? (() => true),
 		hasPendingMessages: () => false,
@@ -349,5 +350,152 @@ describe("hooks lifecycle", () => {
 
 		await cap.handlers.get("session_start")?.({ reason: "startup" }, currentCtx);
 		assert.equal(cap.sentMessages.length, 1);
+	});
+
+	it("marks a daily hook satisfied when the daily cap skips it", async () => {
+		const routine = hookRoutine("capped", "agent_end", "daily");
+		routine.maxRunsPerDay = 1;
+		await seedStore((store) => {
+			store.routines[routine.id] = routine;
+			store.tickState[routine.id] = {
+				tickCount: 1,
+				lastFiredAt: Date.now(),
+				lastFiredDateLocal: new Date().toLocaleDateString("en-CA"),
+				userState: {},
+				runsToday: 1,
+				runsTodayDate: new Date().toLocaleDateString("en-CA"),
+			};
+		});
+		const rt = makeRuntime();
+		const cap = capturePi();
+		let currentCtx = fakeCtx();
+		registerHooks(
+			cap.pi,
+			rt,
+			() => currentCtx,
+			(ctx) => {
+				currentCtx = ctx;
+			},
+		);
+		await cap.handlers.get("session_start")?.({ reason: "startup" }, currentCtx);
+
+		await cap.handlers.get("agent_end")?.({}, currentCtx);
+		await cap.handlers.get("agent_end")?.({}, currentCtx);
+
+		assert.equal(cap.sentMessages.length, 0);
+		assert.equal(rt.store.tickState[routine.id]?.runs?.length, 1);
+		assert.equal(rt.store.tickState[routine.id]?.runs?.[0]?.skipReason, "daily cap reached");
+	});
+
+	it("expires deferred shutdown hooks even in print mode", async () => {
+		const routine = hookRoutine("expired", "session_shutdown", "per_session");
+		await seedStore((store) => {
+			store.routines[routine.id] = routine;
+			store.deferredHooks.push({
+				id: "old-deferred",
+				routineId: routine.id,
+				triggerIndex: 0,
+				endedSessionId: "old-session",
+				deferredAt: Date.now() - 8 * 24 * 60 * 60_000,
+				endedSessionCwd: "/tmp/old",
+				endedDateLocal: "2026-01-01",
+				endedTimeLocal: "12:00:00",
+				transcript: "old",
+			});
+		});
+		const rt = makeRuntime();
+		const cap = capturePi();
+		let currentCtx = fakeCtx([], { hasUI: false });
+		registerHooks(
+			cap.pi,
+			rt,
+			() => currentCtx,
+			(ctx) => {
+				currentCtx = ctx;
+			},
+		);
+
+		await cap.handlers.get("session_start")?.({ reason: "startup" }, currentCtx);
+
+		assert.equal(rt.store.deferredHooks.length, 0);
+		assert.equal(
+			rt.store.tickState[routine.id]?.runs?.at(-1)?.skipReason,
+			"deferred shutdown hook expired",
+		);
+	});
+
+	it("supersedes an older deferred wrap for the same routine", async () => {
+		const routine = hookRoutine("wrap-latest", "session_shutdown", "per_session");
+		const rt = makeRuntime();
+		rt.store.routines[routine.id] = routine;
+		rt.store.deferredHooks.push({
+			id: "older",
+			routineId: routine.id,
+			triggerIndex: 0,
+			endedSessionId: "older-session",
+			deferredAt: 1,
+			endedSessionCwd: "/tmp/older",
+			endedDateLocal: "2026-01-01",
+			endedTimeLocal: "12:00:00",
+			transcript: "older transcript",
+		});
+		const cap = capturePi();
+		let currentCtx = fakeCtx([], {
+			sessionId: "newer-session",
+			messages: [{ role: "user", text: "newer transcript" }],
+		});
+		registerHooks(
+			cap.pi,
+			rt,
+			() => currentCtx,
+			(ctx) => {
+				currentCtx = ctx;
+			},
+		);
+
+		await cap.handlers.get("session_shutdown")?.({ reason: "quit" }, currentCtx);
+
+		assert.equal(rt.store.deferredHooks.length, 1);
+		assert.equal(rt.store.deferredHooks[0]?.endedSessionId, "newer-session");
+		assert.equal(
+			rt.store.tickState[routine.id]?.runs?.at(-1)?.skipReason,
+			"superseded deferred shutdown hook",
+		);
+	});
+
+	it("captures shutdown hooks while finalizing an interrupted routine turn", async () => {
+		const wrap = hookRoutine("wrap-interrupted", "session_shutdown", "per_session");
+		const active = pulseRoutine("active");
+		const rt = makeRuntime();
+		rt.store.routines[wrap.id] = wrap;
+		rt.store.routines[active.id] = active;
+		rt.isRoutineTurnActive = true;
+		rt.activeRoutineName = active.name;
+		rt.pendingRun = {
+			routineId: active.id,
+			runId: "interrupted-run",
+			triggerIndex: 0,
+			triggerKind: "pulse",
+			startedAt: Date.now() - 100,
+			snippet: "",
+			status: "success",
+		};
+		const cap = capturePi();
+		let currentCtx = fakeCtx([], { sessionId: "interrupted-session" });
+		registerHooks(
+			cap.pi,
+			rt,
+			() => currentCtx,
+			(ctx) => {
+				currentCtx = ctx;
+			},
+		);
+
+		await cap.handlers.get("session_shutdown")?.({ reason: "quit" }, currentCtx);
+
+		assert.equal(rt.isRoutineTurnActive, false);
+		assert.equal(rt.pendingRun, null);
+		assert.equal(rt.store.deferredHooks.length, 1);
+		assert.equal(rt.store.tickState[active.id]?.runs?.at(-1)?.status, "error");
 	});
 });

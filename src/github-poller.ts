@@ -54,6 +54,23 @@ export function __setGhRunnerForTests(runner: GhRunner): GhRunner {
 }
 
 function defaultGhRunner(args: string[]): Promise<GhResult> {
+	return runGhProcess(args, GH_TIMEOUT_MS, GH_MAX_OUTPUT_BYTES);
+}
+
+/** Test-only seam for timeout/output-limit behavior of the real subprocess runner. */
+export function __runGhProcessForTests(
+	args: string[],
+	timeoutMs: number,
+	maxOutputBytes: number,
+): Promise<GhResult> {
+	return runGhProcess(args, timeoutMs, maxOutputBytes);
+}
+
+function runGhProcess(
+	args: string[],
+	timeoutMs: number,
+	maxOutputBytes: number,
+): Promise<GhResult> {
 	return new Promise((resolve) => {
 		let proc: ReturnType<typeof spawn>;
 		try {
@@ -75,9 +92,9 @@ function defaultGhRunner(args: string[]): Promise<GhResult> {
 		};
 		const onChunk = (b: Buffer, target: "stdout" | "stderr") => {
 			outputBytes += b.length;
-			if (outputBytes > GH_MAX_OUTPUT_BYTES) {
+			if (outputBytes > maxOutputBytes) {
 				proc.kill("SIGTERM");
-				finish({ ok: false, error: "gh output exceeded 2 MiB" });
+				finish({ ok: false, error: `gh output exceeded ${maxOutputBytes} bytes` });
 				return;
 			}
 			if (target === "stdout") out += b.toString("utf8");
@@ -85,8 +102,8 @@ function defaultGhRunner(args: string[]): Promise<GhResult> {
 		};
 		const timeout = setTimeout(() => {
 			proc.kill("SIGTERM");
-			finish({ ok: false, error: `gh timed out after ${GH_TIMEOUT_MS / 1000}s` });
-		}, GH_TIMEOUT_MS);
+			finish({ ok: false, error: `gh timed out after ${timeoutMs}ms` });
+		}, timeoutMs);
 		proc.stdout?.on("data", (b: Buffer) => {
 			onChunk(b, "stdout");
 		});
@@ -345,10 +362,13 @@ export async function tickGithub(
 					})),
 				)
 			: [{ branch: undefined, result: await ghRunner(["api", endpointFor(trig)]) }];
-	const failure = polls.find(({ result }) => !result.ok)?.result;
+	const failures = polls.filter(({ result }) => !result.ok);
+	const successfulPolls = polls.filter(({ result }) => result.ok);
+	let nextDelay = interval;
 
-	if (failure && !failure.ok) {
-		if (failure.error === "ENOENT") {
+	if (failures.length > 0) {
+		const missingCli = failures.some(({ result }) => result.error === "ENOENT");
+		if (missingCli) {
 			if (!tstate.ghMissingLogged) {
 				console.warn(
 					`[pi-routines] github: 'gh' CLI not found — disabling poller for '${routine.name}'. Install gh and reload.`,
@@ -356,21 +376,23 @@ export async function tickGithub(
 				tstate.ghMissingLogged = true;
 				tmap.set(key, tstate);
 			}
-			// Park at max backoff; if user later installs gh, /reload re-arms.
-			return MAX_GITHUB_BACKOFF_MS;
+			nextDelay = MAX_GITHUB_BACKOFF_MS;
+		} else {
+			nextDelay = Math.min(tstate.backoffMs * 2, MAX_GITHUB_BACKOFF_MS);
+			tstate.backoffMs = nextDelay;
+			tmap.set(key, tstate);
+			for (const failure of failures) {
+				console.warn(
+					`[pi-routines] github poll failed for '${routine.name}' (${trig.repo}${failure.branch ? `:${failure.branch}` : ""}): ${failure.result.error}. Next try in ${Math.round(nextDelay / 1000)}s.`,
+				);
+			}
 		}
-		const nextBackoff = Math.min(tstate.backoffMs * 2, MAX_GITHUB_BACKOFF_MS);
-		tstate.backoffMs = nextBackoff;
+		if (successfulPolls.length === 0) return nextDelay;
+	} else {
+		// Full success — reset backoff.
+		tstate.backoffMs = interval;
 		tmap.set(key, tstate);
-		console.warn(
-			`[pi-routines] github poll failed for '${routine.name}' (${trig.repo}): ${failure.error}. Next try in ${Math.round(nextBackoff / 1000)}s.`,
-		);
-		return nextBackoff;
 	}
-
-	// Success — reset backoff.
-	tstate.backoffMs = interval;
-	tmap.set(key, tstate);
 
 	const fresh: NormalisedEvent[] = [];
 	let cursorChanged = false;
@@ -378,7 +400,7 @@ export async function tickGithub(
 
 	if (branches.length > 0) {
 		const cursors = { ...(trig.branchCursors ?? {}) };
-		for (const poll of polls) {
+		for (const poll of successfulPolls) {
 			const branch = poll.branch as string;
 			const events = normaliseEvents(trig, poll.result.json, branch);
 			const previous = cursors[branch];
@@ -397,7 +419,7 @@ export async function tickGithub(
 		}
 		trig.branchCursors = cursors;
 	} else {
-		const events = normaliseEvents(trig, polls[0]?.result.json);
+		const events = normaliseEvents(trig, successfulPolls[0]?.result.json);
 		const previous = trig.cursor;
 		const batch = eventsAfterCursor(events, previous);
 		if (batch.cursorMissing) {
@@ -433,5 +455,5 @@ export async function tickGithub(
 	if (cursorChanged || seeded) {
 		await saveStore(runtime.store, runtime.storeGeneration);
 	}
-	return interval;
+	return nextDelay;
 }

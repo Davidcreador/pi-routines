@@ -9,7 +9,7 @@ const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "pi-routines-srv-"));
 const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
-const { startServer, stopServer } = await import("../src/server.ts");
+const { restartServerIfConfigured, startServer, stopServer } = await import("../src/server.ts");
 const tokens = await import("../src/tokens.ts");
 const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
 
@@ -308,5 +308,17 @@ describe("server — paused routines", () => {
 			headers: { authorization: `Bearer ${token}` },
 		});
 		assert.equal(res.status, 202);
+	});
+});
+
+describe("server — reload lifecycle", () => {
+	it("restarts on the configured port when cleanup preserves intent", async () => {
+		const previousPort = port;
+		await stopServer(runtime, { preserveIntent: true });
+		runtime = makeRuntime();
+
+		const restarted = await restartServerIfConfigured(runtime, { pi: fakePi, getCtx });
+
+		assert.equal(restarted, previousPort);
 	});
 });

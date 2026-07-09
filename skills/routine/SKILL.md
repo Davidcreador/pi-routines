@@ -48,6 +48,7 @@ commands when the user is driving; use tools when the LLM is reacting.
   - `session_shutdown` — wrap-up/save notes (pair with `once: "per_session"`).
     Pi cannot finish an LLM turn during teardown, so the extension persists a
     bounded transcript snapshot and runs this hook at the next interactive start.
+    Unreplayed snapshots expire after seven days.
 - **`api`** — POST to `127.0.0.1:7424/routines/<id>/trigger` or the
   Claude-style `/fire` route with a bearer token.
   Server is off by default — instruct the user to run `/routine-server start` and
@@ -163,6 +164,7 @@ Two robustness primitives that come up often:
 - **`api` and `github` triggers require setup.** `api` needs the user to start
   the local server (`/routine-server start`) and generate a token
   (`/routine-token generate <name>`). `github` needs `gh` installed and
-  authenticated. Mention this in your response when you create one.
+  authenticated. Mention this in your response when you create one. A running
+  API server is restarted automatically after `/reload`.
 - **`agent_end` is single-routine globally** — only one routine in the store
   may attach to it. Tell the user if they hit the conflict.

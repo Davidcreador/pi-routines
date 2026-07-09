@@ -46,6 +46,7 @@ interface ServerState {
 
 let active: ServerState | null = null;
 let closing: Promise<void> | null = null;
+let desiredPort: number | null = null;
 
 /** True if the server is currently listening. */
 export function isServerRunning(): boolean {
@@ -199,11 +200,16 @@ export async function startServer(
 		requestCount: 0,
 		rate: new Map(),
 	};
+	desiredPort = boundPort;
 	return boundPort;
 }
 
 /** Stop the HTTP server. Idempotent. */
-export async function stopServer(_runtime: RoutineRuntimeState): Promise<void> {
+export async function stopServer(
+	_runtime: RoutineRuntimeState,
+	options: { preserveIntent?: boolean } = {},
+): Promise<void> {
+	if (!options.preserveIntent) desiredPort = null;
 	if (closing) return closing;
 	if (!active) return;
 	const { server } = active;
@@ -215,6 +221,15 @@ export async function stopServer(_runtime: RoutineRuntimeState): Promise<void> {
 	});
 	await closing;
 	closing = null;
+}
+
+/** Restart the API server after extension reload when it was previously running. */
+export async function restartServerIfConfigured(
+	runtime: RoutineRuntimeState,
+	ctx: StartContext,
+): Promise<number | null> {
+	if (desiredPort === null) return null;
+	return startServer(runtime, desiredPort, ctx);
 }
 
 async function handleRequest(

@@ -8,14 +8,16 @@ All notable changes to `pi-routines` are documented here. Versions follow
 ### Fixed
 
 - Shutdown hooks are durably deferred to the next interactive session with a
-  bounded transcript snapshot instead of starting an LLM turn during teardown.
+  bounded transcript snapshot instead of starting an LLM turn during teardown;
+  stale snapshots expire after seven days and newer wraps supersede older ones.
 - State and token writes are serialized; state generations prevent stale
   extension instances from overwriting data after reload.
 - Persisted stores are shape-validated, invalid routines are quarantined, and
   state/token files use owner-only permissions.
 - GitHub polling now handles missing cursors without page-wide replay, supports
   real branch filtering with per-branch cursors, excludes pull requests from
-  issue events, validates repository names, and bounds `gh` runtime/output.
+  issue events, preserves successful branch polls during partial failure,
+  validates repository names, and bounds `gh` runtime/output.
 - Queue entries carry stable run IDs and complete payload metadata; dropped
   work receives an auditable skipped-run record.
 - Hook `once` state is committed per trigger only after successful start.
@@ -24,6 +26,7 @@ All notable changes to `pi-routines` are documented here. Versions follow
 ### Changed
 
 - API responses return the same run ID used by run history.
+- A running local API server restarts automatically after extension reload.
 - Cron export rejects intervals that POSIX cron cannot represent exactly.
 - GitHub template installation accepts an explicit `owner/repo`.
 

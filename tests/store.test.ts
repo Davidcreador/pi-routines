@@ -135,7 +135,7 @@ describe("loadStore (filesystem)", () => {
 		assert.equal(written.schemaVersion, SCHEMA_VERSION);
 	});
 
-	it("v2 file: no migration, no .v1.bak written", async () => {
+	it("current-schema file: no migration, no .v1.bak written", async () => {
 		await clearState();
 		await fs.mkdir(path.dirname(stateFile), { recursive: true });
 		await saveStore(emptyStore()); // produces a clean v2 file
@@ -144,6 +144,46 @@ describe("loadStore (filesystem)", () => {
 
 		await loadStore();
 		await assert.rejects(fs.access(`${stateFile}.v1.bak`));
+	});
+
+	it("migrates a v2 daily hook marker and initializes deferred hooks", async () => {
+		await clearState();
+		await fs.mkdir(path.dirname(stateFile), { recursive: true });
+		await fs.writeFile(
+			stateFile,
+			JSON.stringify({
+				schemaVersion: 2,
+				routines: {
+					daily: {
+						id: "daily",
+						name: "daily",
+						prompt: "run",
+						triggers: [{ kind: "hook", event: "session_start", once: "daily" }],
+						context: "session",
+						quiet: false,
+						createdAt: 1,
+					},
+				},
+				tickState: {
+					daily: {
+						tickCount: 1,
+						lastFiredAt: 1,
+						lastFiredDateLocal: "2026-07-09",
+						userState: {},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const loaded = await loadStore();
+
+		assert.equal(loaded.schemaVersion, 3);
+		assert.deepEqual(loaded.deferredHooks, []);
+		assert.equal(
+			loaded.tickState.daily?.hookOnceDaily?.["daily:session_start:0"],
+			"2026-07-09",
+		);
 	});
 
 	it("corrupt file: falls back to emptyStore", async () => {
@@ -202,6 +242,32 @@ describe("loadStore (filesystem)", () => {
 		);
 		const loaded = await loadStore();
 		assert.deepEqual(loaded.routines, {});
+	});
+
+	it("drops oversized persisted user state during sanitization", async () => {
+		await clearState();
+		const store = emptyStore();
+		store.routines.large = {
+			id: "large",
+			name: "large",
+			prompt: "run",
+			triggers: [{ kind: "pulse", intervalMs: 60_000, intervalHuman: "1m" }],
+			context: "session",
+			quiet: false,
+			createdAt: 1,
+		};
+		store.tickState.large = {
+			tickCount: 1,
+			lastFiredAt: 1,
+			lastFiredDateLocal: "2026-07-09",
+			userState: { data: "x".repeat(5000) },
+		};
+		await fs.mkdir(path.dirname(stateFile), { recursive: true });
+		await fs.writeFile(stateFile, JSON.stringify(store), "utf8");
+
+		const loaded = await loadStore();
+
+		assert.deepEqual(loaded.tickState.large?.userState, {});
 	});
 });
 

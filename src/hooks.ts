@@ -31,9 +31,15 @@ import { nanoid } from "nanoid";
 import { recordRun, recordSkippedFire } from "./executor.ts";
 import * as guard from "./guard.ts";
 import { drainQueue, enqueueRoutineFire, scheduleRoutine, stopScheduler } from "./scheduler.ts";
+import { restartServerIfConfigured } from "./server.ts";
 import { loadStore, saveStore } from "./store.ts";
 import type { HookTrigger, Routine, RoutineRuntimeState } from "./types.ts";
-import { MAX_DEFERRED_HOOKS, MAX_DEFERRED_TRANSCRIPT_BYTES, MAX_QUEUE_DEPTH } from "./types.ts";
+import {
+	MAX_DEFERRED_AGE_MS,
+	MAX_DEFERRED_HOOKS,
+	MAX_DEFERRED_TRANSCRIPT_BYTES,
+	MAX_QUEUE_DEPTH,
+} from "./types.ts";
 import { clearWidget, restartWidgetRefresh, stopWidgetRefresh, updateWidget } from "./widget.ts";
 
 /**
@@ -66,6 +72,7 @@ export function registerHooks(
 		stopScheduler(runtime, event.reason === "reload" ? "reload" : "session restart");
 		stopWidgetRefresh(runtime);
 		runtime.store = await loadStore(runtime.storeGeneration);
+		pruneExpiredDeferredHooks(runtime);
 		runtime.triggerOrigin.clear();
 		runtime.apiArgs?.clear();
 		runtime.githubEvents?.clear();
@@ -73,6 +80,11 @@ export function registerHooks(
 
 		// Print mode: register-only path. No timers, no widget, no hook fires.
 		if (!ctx.hasUI) return;
+		try {
+			await restartServerIfConfigured(runtime, { pi, getCtx });
+		} catch (err) {
+			console.error("[pi-routines] could not restart API server after reload:", err);
+		}
 
 		// Re-arm timers for every routine; scheduler decides per trigger.
 		for (const routine of Object.values(runtime.store.routines)) {
@@ -343,6 +355,24 @@ function captureDeferredShutdownHooks(runtime: RoutineRuntimeState, ctx: Extensi
 				item.triggerIndex === index,
 		);
 		if (duplicate) continue;
+		const superseded = runtime.store.deferredHooks.filter(
+			(item) => item.routineId === routine.id && item.triggerIndex === index,
+		);
+		for (const item of superseded) {
+			recordSkippedFire(
+				runtime,
+				runtime.store,
+				routine,
+				{ index, kind: "hook" },
+				"superseded deferred shutdown hook",
+			);
+		}
+		if (superseded.length > 0) {
+			const supersededIds = new Set(superseded.map((item) => item.id));
+			runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
+				(item) => !supersededIds.has(item.id),
+			);
+		}
 
 		while (runtime.store.deferredHooks.length >= MAX_DEFERRED_HOOKS) {
 			const dropped = runtime.store.deferredHooks.shift();
@@ -390,6 +420,29 @@ function deferredContextNote(item: RoutineRuntimeState["store"]["deferredHooks"]
 	);
 }
 
+function pruneExpiredDeferredHooks(runtime: RoutineRuntimeState): void {
+	const cutoff = Date.now() - MAX_DEFERRED_AGE_MS;
+	const expired = runtime.store.deferredHooks.filter((item) => item.deferredAt < cutoff);
+	if (expired.length === 0) return;
+	const expiredIds = new Set(expired.map((item) => item.id));
+	runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
+		(item) => !expiredIds.has(item.id),
+	);
+	for (const item of expired) {
+		const routine = runtime.store.routines[item.routineId];
+		if (routine) {
+			recordSkippedFire(
+				runtime,
+				runtime.store,
+				routine,
+				{ index: item.triggerIndex, kind: "hook" },
+				"deferred shutdown hook expired",
+			);
+		}
+	}
+	void saveStore(runtime.store, runtime.storeGeneration);
+}
+
 function promoteDeferredHooks(
 	runtime: RoutineRuntimeState,
 	pi: ExtensionAPI,
@@ -410,6 +463,15 @@ function promoteDeferredHooks(
 			runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
 				(candidate) => candidate.id !== item.id,
 			);
+			if (routine) {
+				recordSkippedFire(
+					runtime,
+					runtime.store,
+					routine,
+					{ index: item.triggerIndex, kind: "hook" },
+					"stale deferred shutdown hook",
+				);
+			}
 			changed = true;
 			continue;
 		}
@@ -431,6 +493,7 @@ function promoteDeferredHooks(
 			contextNote: deferredContextNote(item),
 			deferredHookId: item.id,
 			autoDrain: false,
+			priority: true,
 		});
 		queued.add(item.id);
 	}

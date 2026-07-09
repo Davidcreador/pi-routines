@@ -303,12 +303,15 @@ in-memory state. State and token files are written with owner-only `0600` mode.
 
 - **One in-flight routine turn at a time** (`isRoutineTurnActive` flag). Routines
   queue if they overlap.
+- **Separate pi processes do not coordinate scheduling or writes.** Serialized
+  persistence protects reloads within one process; running the same routines in
+  multiple pi processes can still duplicate fires or overwrite state.
 - **Three-level recursion guard** — flag + input-source tag + depth check prevents
   a routine from triggering another routine.
 - **`session_shutdown` hooks are deferred on real quit.** Pi disposes the
   session after shutdown handlers, so the extension stores a bounded transcript
   snapshot and runs the hook at the next interactive session. Reload does not
-  create a deferred fire.
+  create a deferred fire; unreplayed snapshots expire after seven days.
 - **At most one `agent_end` hook fires per user-driven turn** — protects against
   loops when a routine's response triggers `agent_end` itself. Enforced both
   globally (across routines) and within a single routine's trigger list.
@@ -320,7 +323,8 @@ in-memory state. State and token files are written with owner-only `0600` mode.
 - **Print mode** (`pi --print`) registers tools but skips timers, widget, and hook
   fires — safe for one-shot CLI use.
 - **Hot-reload safe** — `globalThis.__piRoutinesCleanup` stops old timers + the HTTP
-  server before the new instance arms its own on `/reload`.
+  server before the new instance re-arms timers and restarts a previously running
+  API server on `/reload`.
 - **Silent mode** — routines marked `quiet: true` whose response is exactly `[~]` are
   suppressed from chat output (still counted as a tick; status recorded as `silent`).
 - **HTTP server defense-in-depth** — 127.0.0.1 bind, per-request loopback re-check,

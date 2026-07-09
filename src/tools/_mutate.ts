@@ -52,6 +52,15 @@ const MAX_ROUTINES = 20;
 /** Cap on the number of triggers any one routine may carry. */
 const MAX_TRIGGERS_PER_ROUTINE = 4;
 
+function validateTimezone(timezone: string | undefined): void {
+	if (!timezone) return;
+	try {
+		new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
+	} catch {
+		throw new Error(`Invalid IANA timezone '${timezone}'.`);
+	}
+}
+
 // ─── Raw input trigger shapes ────────────────────────────────────────────────
 //
 // These are what callers (LLM tool / slash commands) pass in. They contain
@@ -177,10 +186,10 @@ export function resolveTrigger(input: TriggerInput): RoutineTrigger {
 				intervalMs: parsed.ms,
 				intervalHuman: parsed.human,
 			};
-			if (input.timezone) out.timezone = input.timezone;
 			return out;
 		}
 		case "cron": {
+			validateTimezone(input.timezone);
 			// Validate by parsing + computing the next fire (also catches
 			// "no fire within 4 years" early).
 			parseCron(input.expr);
@@ -190,6 +199,7 @@ export function resolveTrigger(input: TriggerInput): RoutineTrigger {
 			return out;
 		}
 		case "oneoff": {
+			validateTimezone(input.timezone);
 			// parseOneOff throws on past timestamps and unparseable strings.
 			parseOneOff(input.fireAtIso, input.timezone);
 			const out: OneOffTrigger = { kind: "oneoff", fireAtIso: input.fireAtIso };

@@ -82,7 +82,11 @@ export function queueHasRoutine(runtime: RoutineRuntimeState, routineId: string)
 }
 
 function dropOldestQueuedFire(runtime: RoutineRuntimeState, reason: string): void {
-	const dropped = runtime.queue.shift();
+	dropQueuedFireAt(runtime, 0, reason);
+}
+
+function dropQueuedFireAt(runtime: RoutineRuntimeState, index: number, reason: string): void {
+	const [dropped] = runtime.queue.splice(index, 1);
 	if (!dropped) return;
 	const routine = runtime.store.routines[dropped.routineId];
 	if (!routine) return;
@@ -98,6 +102,7 @@ export interface QueueMetadata {
 	hookOnce?: RoutineQueueEntry["hookOnce"];
 	deferredHookId?: string;
 	autoDrain?: boolean;
+	priority?: boolean;
 }
 
 /** Enqueue one fully-described fire, applying shared backpressure and drain handling. */
@@ -109,11 +114,24 @@ export function enqueueRoutineFire(
 	getCtx: () => ExtensionContext | null,
 	metadata: QueueMetadata = {},
 ): string {
+	const { autoDrain = true, priority = false, runId = nanoid(), ...entryMetadata } = metadata;
 	if (runtime.queue.length >= MAX_QUEUE_DEPTH) {
-		dropOldestQueuedFire(runtime, "queue overflow");
+		const normalIndex = priority
+			? runtime.queue.findLastIndex((entry) => !entry.deferredHookId)
+			: -1;
+		dropQueuedFireAt(
+			runtime,
+			normalIndex >= 0 ? normalIndex : 0,
+			"queue overflow",
+		);
 	}
-	const { autoDrain = true, runId = nanoid(), ...entryMetadata } = metadata;
-	runtime.queue.push({ routineId: routine.id, runId, origin, ...entryMetadata });
+	const entry = { routineId: routine.id, runId, origin, ...entryMetadata };
+	if (priority) {
+		const firstNormal = runtime.queue.findIndex((queued) => !queued.deferredHookId);
+		runtime.queue.splice(firstNormal >= 0 ? firstNormal : runtime.queue.length, 0, entry);
+	} else {
+		runtime.queue.push(entry);
+	}
 	if (autoDrain) {
 		void drainQueue(runtime, pi, getCtx).catch((err) => {
 			console.error(`[pi-routines] queue drain failed for '${routine.name}':`, err);
@@ -376,7 +394,7 @@ export async function drainQueue(
 		} catch (err) {
 			if (isStaleCtxError(err)) {
 				console.warn(`[pi-routines] drainQueue: stale ctx; stopping all timers`);
-				stopScheduler(runtime);
+				stopScheduler(runtime, "stale extension context");
 				return;
 			}
 			throw err;

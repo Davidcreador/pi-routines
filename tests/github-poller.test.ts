@@ -21,6 +21,7 @@ const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
 const {
+	__runGhProcessForTests,
 	__setGhRunnerForTests,
 	armGithubPoller,
 	endpointFor,
@@ -165,6 +166,44 @@ describe("github-poller — pure helpers", () => {
 			filterEvents(t, evs).map((e) => e.id),
 			["1"],
 		);
+	});
+});
+
+describe("github-poller — subprocess limits", () => {
+	it("terminates gh when output exceeds the configured cap", async () => {
+		if (process.platform === "win32") return;
+		const bin = path.join(tmpHome, "bin-output");
+		await fs.mkdir(bin, { recursive: true });
+		const gh = path.join(bin, "gh");
+		await fs.writeFile(gh, `#!/bin/sh\nprintf '${"x".repeat(128)}'\n`, "utf8");
+		await fs.chmod(gh, 0o755);
+		const previousPath = process.env.PATH;
+		process.env.PATH = bin;
+		try {
+			const result = await __runGhProcessForTests(["api", "ignored"], 1000, 32);
+			assert.equal(result.ok, false);
+			assert.match(result.error ?? "", /output exceeded/);
+		} finally {
+			process.env.PATH = previousPath;
+		}
+	});
+
+	it("terminates gh when it exceeds the configured timeout", async () => {
+		if (process.platform === "win32") return;
+		const bin = path.join(tmpHome, "bin-timeout");
+		await fs.mkdir(bin, { recursive: true });
+		const gh = path.join(bin, "gh");
+		await fs.writeFile(gh, "#!/bin/sh\nsleep 1\nprintf '[]'\n", "utf8");
+		await fs.chmod(gh, 0o755);
+		const previousPath = process.env.PATH;
+		process.env.PATH = bin;
+		try {
+			const result = await __runGhProcessForTests(["api", "ignored"], 20, 1024);
+			assert.equal(result.ok, false);
+			assert.match(result.error ?? "", /timed out/);
+		} finally {
+			process.env.PATH = previousPath;
+		}
 	});
 });
 
@@ -330,6 +369,38 @@ describe("github-poller — armed lifecycle", () => {
 			rt.queue.map((entry) => entry.githubEvent?.__branch),
 			["main", "dev"],
 		);
+	});
+
+	it("processes successful branches when another branch poll fails", async () => {
+		const rt = makeRuntime();
+		const trig: GithubTrigger = {
+			kind: "github",
+			repo: "o/r",
+			event: "push",
+			pollIntervalMs: 60_000,
+			filter: { branches: ["main", "release"] },
+			branchCursors: { main: "main-1", release: "release-1" },
+		};
+		const routine = makeRoutine(trig);
+		rt.store.routines[routine.id] = routine;
+		restoreRunner = __setGhRunnerForTests(async (args) => {
+			const endpoint = args[1] ?? "";
+			if (endpoint.includes("sha=release")) return { ok: false, error: "403" };
+			return {
+				ok: true,
+				json: [
+					{ sha: "main-2", commit: { author: { date: "2026-01-02" } } },
+					{ sha: "main-1" },
+				],
+			};
+		});
+
+		const nextDelay = await tickGithub(routine, 0, rt, {} as never, () => null);
+
+		assert.ok(nextDelay > trig.pollIntervalMs);
+		assert.deepEqual(trig.branchCursors, { main: "main-2", release: "release-1" });
+		assert.equal(rt.queue.length, 1);
+		assert.equal(rt.queue[0]?.githubEvent?.__branch, "main");
 	});
 
 	it("missing gh (ENOENT) returns gracefully — no throw, handle returned", async () => {

@@ -139,7 +139,7 @@ export default function registerRoutinesExtension(pi: ExtensionAPI): void {
 			/* swallow during teardown */
 		}
 		try {
-			void stopServer(runtime);
+			void stopServer(runtime, { preserveIntent: true });
 		} catch {
 			/* swallow during teardown */
 		}

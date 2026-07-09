@@ -88,6 +88,22 @@ describe("resolveTrigger — every kind", () => {
 		assert.throws(() => resolveTrigger({ kind: "cron", expr: "0 0 9 * * 1-5" }), /5 fields/);
 	});
 
+	it("cron and oneoff reject invalid IANA timezones", () => {
+		assert.throws(
+			() => resolveTrigger({ kind: "cron", expr: "0 9 * * *", timezone: "Not/A_Zone" }),
+			/Invalid IANA timezone/,
+		);
+		assert.throws(
+			() =>
+				resolveTrigger({
+					kind: "oneoff",
+					fireAtIso: "2099-01-01T09:00:00",
+					timezone: "Not/A_Zone",
+				}),
+			/Invalid IANA timezone/,
+		);
+	});
+
 	it("oneoff: accepts a future ISO timestamp", () => {
 		const future = new Date(Date.now() + 3_600_000).toISOString();
 		const t = resolveTrigger({ kind: "oneoff", fireAtIso: future });

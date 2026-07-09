@@ -191,4 +191,41 @@ describe("scheduler — multi-trigger arming", () => {
 		assert.equal(rt.store.tickState.q0?.runs?.at(-1)?.skipReason, "queue overflow");
 		stopScheduler(rt);
 	});
+
+	it("places deferred shutdown work ahead of normal queued fires", () => {
+		const rt = makeRuntime();
+		const routines = ["normal-a", "normal-b", "deferred"].map(
+			(id, index): Routine => ({
+				id,
+				name: id,
+				prompt: "go",
+				triggers: [{ kind: "hook", event: "session_shutdown" }],
+				context: "session",
+				quiet: false,
+				createdAt: index,
+			}),
+		);
+		for (const routine of routines) rt.store.routines[routine.id] = routine;
+		for (const routine of routines.slice(0, 2)) {
+			enqueueRoutineFire(routine, { index: 0, kind: "hook" }, rt, fakePi() as never, () => null, {
+				autoDrain: false,
+			});
+		}
+		const deferred = routines[2];
+		assert.ok(deferred);
+		enqueueRoutineFire(
+			deferred,
+			{ index: 0, kind: "hook" },
+			rt,
+			fakePi() as never,
+			() => null,
+			{ autoDrain: false, priority: true, deferredHookId: "deferred-1" },
+		);
+
+		assert.deepEqual(
+			rt.queue.map((entry) => entry.routineId),
+			["deferred", "normal-a", "normal-b"],
+		);
+		stopScheduler(rt);
+	});
 });

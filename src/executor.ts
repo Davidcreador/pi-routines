@@ -152,6 +152,15 @@ export async function fireRoutine(
 		const sameDay = tickState.runsTodayDate === today;
 		const usedToday = sameDay ? (tickState.runsToday ?? 0) : 0;
 		if (usedToday >= routine.maxRunsPerDay) {
+			const hookTrigger = routine.triggers[origin.index];
+			if (
+				request?.hookOnceKey &&
+				request.hookOnce === "daily" &&
+				hookTrigger?.kind === "hook"
+			) {
+				guard.commitHookFire(hookTrigger, tickState, runtime, request.hookOnceKey, today);
+				store.tickState[routine.id] = tickState;
+			}
 			recordRun(runtime, store, {
 				id: runId,
 				routineId: routine.id,

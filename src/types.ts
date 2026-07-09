@@ -24,9 +24,6 @@ export interface PulseTrigger {
 	intervalMs: number;
 	/** Original human-readable string, e.g. "5m", "1h30m". */
 	intervalHuman: string;
-	/** Optional IANA timezone, e.g. "America/Los_Angeles". Reserved for
-	 *  cron-equivalent semantics; ignored by the simple interval scheduler. */
-	timezone?: string;
 }
 
 /**
@@ -172,8 +169,7 @@ export interface Routine {
 	 * When `true`, the routine is suspended: timers stay armed for cheap
 	 * /reload behaviour, but `enqueueTriggerFire`, hook firing, and the
 	 * HTTP server all short-circuit and record a `"skipped"` run with
-	 * reason `"paused"`. Resume with `/routine-resume` or the upcoming
-	 * `RoutinePause`/`RoutineResume` tools.
+	 * reason `"paused"`. Resume with `/routine-resume` or `RoutineResume`.
 	 */
 	paused?: boolean;
 	/** Epoch millis of creation. */
@@ -234,8 +230,8 @@ export interface RoutineRun {
 	/** Outcome classification. */
 	status: "success" | "error" | "skipped" | "silent";
 	/**
-	 * Optional reason for `"skipped"` runs (e.g. `"paused"`, `"daily cap reached"`,
-	 * `"once: daily already fired"`). Omitted for non-skipped statuses.
+	 * Optional reason for `"skipped"` runs (e.g. `"paused"` or
+	 * `"daily cap reached"`). Omitted for non-skipped statuses.
 	 */
 	skipReason?: string;
 	/** Index into `routine.triggers` that fired; `-1` for manual. */
@@ -444,6 +440,9 @@ export const SNIPPET_MAX_CHARS = 200;
 
 /** Max deferred shutdown hooks retained across sessions. */
 export const MAX_DEFERRED_HOOKS = 5;
+
+/** Deferred shutdown hooks expire after seven days without an interactive replay. */
+export const MAX_DEFERRED_AGE_MS = 7 * 24 * 60 * 60_000;
 
 /** Max UTF-8 bytes retained from an ended session transcript. */
 export const MAX_DEFERRED_TRANSCRIPT_BYTES = 8192;

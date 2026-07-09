@@ -28,6 +28,7 @@ import {
 	MAX_DEFERRED_HOOKS,
 	MAX_DEFERRED_TRANSCRIPT_BYTES,
 	MAX_RUN_HISTORY,
+	MAX_USER_STATE_BYTES,
 	SCHEMA_VERSION,
 	STATE_FILE,
 } from "./types.ts";
@@ -86,6 +87,17 @@ function optionalString(value: unknown): value is string | undefined {
 	return value === undefined || typeof value === "string";
 }
 
+function validTimezone(value: unknown): value is string | undefined {
+	if (value === undefined) return true;
+	if (typeof value !== "string") return false;
+	try {
+		new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date());
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 function sanitizeTrigger(value: unknown): RoutineTrigger | null {
 	if (!isRecord(value) || typeof value.kind !== "string") return null;
 	switch (value.kind) {
@@ -93,7 +105,7 @@ function sanitizeTrigger(value: unknown): RoutineTrigger | null {
 			if (
 				!finiteNumber(value.intervalMs, 1) ||
 				typeof value.intervalHuman !== "string" ||
-				!optionalString(value.timezone)
+				value.timezone !== undefined
 			) {
 				return null;
 			}
@@ -101,10 +113,9 @@ function sanitizeTrigger(value: unknown): RoutineTrigger | null {
 				kind: "pulse",
 				intervalMs: value.intervalMs,
 				intervalHuman: value.intervalHuman,
-				...(value.timezone ? { timezone: value.timezone } : {}),
 			};
 		case "cron":
-			if (typeof value.expr !== "string" || !optionalString(value.timezone)) return null;
+			if (typeof value.expr !== "string" || !validTimezone(value.timezone)) return null;
 			return {
 				kind: "cron",
 				expr: value.expr,
@@ -113,7 +124,7 @@ function sanitizeTrigger(value: unknown): RoutineTrigger | null {
 		case "oneoff":
 			if (
 				typeof value.fireAtIso !== "string" ||
-				!optionalString(value.timezone) ||
+				!validTimezone(value.timezone) ||
 				(value.fired !== undefined && typeof value.fired !== "boolean")
 			) {
 				return null;
@@ -277,13 +288,21 @@ function sanitizeTickState(routineId: string, value: unknown): RoutineTickState 
 				.filter((run): run is RoutineRun => run !== null)
 				.slice(-MAX_RUN_HISTORY)
 		: undefined;
+	let userState = isRecord(value.userState) ? value.userState : {};
+	try {
+		if (Buffer.byteLength(JSON.stringify(userState), "utf8") > MAX_USER_STATE_BYTES) {
+			userState = {};
+		}
+	} catch {
+		userState = {};
+	}
 	return {
 		tickCount:
 			Number.isInteger(value.tickCount) && finiteNumber(value.tickCount) ? value.tickCount : 0,
 		lastFiredAt: finiteNumber(value.lastFiredAt) ? value.lastFiredAt : 0,
 		lastFiredDateLocal:
 			typeof value.lastFiredDateLocal === "string" ? value.lastFiredDateLocal : "",
-		userState: isRecord(value.userState) ? value.userState : {},
+		userState,
 		...(runs?.length ? { runs } : {}),
 		...(Number.isInteger(value.runsToday) && finiteNumber(value.runsToday)
 			? { runsToday: value.runsToday }
@@ -355,6 +374,20 @@ export function sanitizeStore(raw: unknown): RoutineStore {
 	const tickState = Object.fromEntries(
 		Object.keys(routines).map((id) => [id, sanitizeTickState(id, rawTicks[id])]),
 	);
+	for (const [id, routine] of Object.entries(routines)) {
+		const trigger = routine.triggers.length === 1 ? routine.triggers[0] : undefined;
+		const tick = tickState[id];
+		if (
+			trigger?.kind === "hook" &&
+			trigger.once === "daily" &&
+			tick?.lastFiredDateLocal &&
+			!tick.hookOnceDaily
+		) {
+			tick.hookOnceDaily = {
+				[`${id}:${trigger.event}:0`]: tick.lastFiredDateLocal,
+			};
+		}
+	}
 	const deferredHooks = (Array.isArray(raw.deferredHooks) ? raw.deferredHooks : [])
 		.map((value) => sanitizeDeferredHook(value, routines))
 		.filter((value): value is DeferredHookFire => value !== null)
@@ -453,17 +486,11 @@ export async function flushStoreWrites(): Promise<void> {
 export function saveStore(store: RoutineStore, generation?: number): Promise<void> {
 	const tmp = `${STATE_FILE}.tmp.${randomBytes(4).toString("hex")}`;
 	const bak = `${STATE_FILE}.bak`;
-	let data: string;
-	try {
-		data = JSON.stringify(store, null, 2);
-	} catch (err) {
-		console.warn(`[pi-routines] saveStore serialize failed: ${(err as Error).message}`);
-		return Promise.resolve();
-	}
 
 	const write = async (): Promise<void> => {
 		if (isStaleGeneration(generation)) return;
 		try {
+			const data = JSON.stringify(store, null, 2);
 			await fs.mkdir(dirname(STATE_FILE), { recursive: true });
 			const fh = await fs.open(tmp, "w", 0o600);
 			try {
