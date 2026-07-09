@@ -3,7 +3,11 @@
 All notable changes to `pi-routines` are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.5.0 — 2026-07-09
+
+Minor release: lifecycle reliability, durable schema v3 persistence, hardened
+GitHub/API automation, and comprehensive edge-case validation. Existing v1/v2
+stores migrate automatically.
 
 ### Fixed
 
@@ -29,6 +33,13 @@ All notable changes to `pi-routines` are documented here. Versions follow
 - A running local API server restarts automatically after extension reload.
 - Cron export rejects intervals that POSIX cron cannot represent exactly.
 - GitHub template installation accepts an explicit `owner/repo`.
+
+### Tests
+
+230 / 230 passing (was 193 in 0.4.0). Added regression coverage for deferred
+shutdown replay, hook guards, queue backpressure, schema migration and
+generation ordering, concurrent token writes, API-server security/reload,
+GitHub cursor and branch behavior, subprocess limits, commands, and validation.
 
 ## 0.4.0 — 2026-07-06
 
