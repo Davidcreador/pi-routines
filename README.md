@@ -330,6 +330,17 @@ in-memory state. State and token files are written with owner-only `0600` mode.
 - **HTTP server defense-in-depth** — 127.0.0.1 bind, per-request loopback re-check,
   Host header allowlist, 4 KiB body cap, per-token leaky bucket, `timingSafeEqual`.
 
+### Drain watchdog
+
+`drainQueue` only runs at enqueue-time, `agent_end`, `session_start`, and
+manual commands — a fire queued while the session is busy at every one of
+those moments would otherwise starve indefinitely. While the fire queue is
+non-empty, an unref'd watchdog timer re-attempts the idle-aware drain every
+`PI_ROUTINES_DRAIN_RETRY_MS` milliseconds (default **60s**, clamped to
+5s–10min). It never fires into a busy session: the usual idle / pending /
+routine-turn gates still apply on every retry, and the timer disarms as soon
+as the queue empties or the scheduler stops.
+
 ---
 
 ## Development

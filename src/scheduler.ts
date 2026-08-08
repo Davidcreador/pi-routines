@@ -5,6 +5,9 @@
  *   - `setInterval` handles, one per pulse routine, stored in `runtime.timers`.
  *   - The FIFO fire queue (`runtime.queue`), with dedup + backpressure cap.
  *   - The idle-aware `drainQueue` loop that hands work to `executor.fireRoutine`.
+ *   - The drain watchdog (`runtime.drainWatchdog`), an idle-watch retry timer
+ *     armed iff the fire queue is non-empty, so queued fires cannot starve
+ *     while the session stays busy across every drain trigger.
  *
  * Does NOT own:
  *   - `pi.on(...)` subscriptions — `hooks.ts` (TP-006) listens for `agent_end`
@@ -65,6 +68,7 @@ export function stopScheduler(runtime: RoutineRuntimeState, reason?: string): vo
 		}
 	}
 	runtime.timers.clear();
+	disarmDrainWatchdog(runtime);
 	if (reason) {
 		while (runtime.queue.length > 0) dropOldestQueuedFire(runtime, reason);
 	} else {
@@ -134,6 +138,7 @@ export function enqueueRoutineFire(
 	} else {
 		runtime.queue.push(entry);
 	}
+	reconcileDrainWatchdog(runtime, pi, getCtx);
 	if (autoDrain) {
 		void drainQueue(runtime, pi, getCtx).catch((err) => {
 			console.error(`[pi-routines] queue drain failed for '${routine.name}':`, err);
@@ -380,66 +385,148 @@ export function unscheduleRoutine(routineId: string, runtime: RoutineRuntimeStat
 	runtime.timers.delete(routineId);
 }
 
+// ─── Drain watchdog ──────────────────────────────────────────────────────────
+//
+// `drainQueue` is only invoked at enqueue-time (autoDrain), `agent_end`,
+// `session_start`, and manual commands. If the session is busy at every one
+// of those moments, a queued fire would starve indefinitely. The watchdog is
+// an unref'd retry timer that re-attempts the drain while the queue is
+// non-empty. Invariant: armed iff `runtime.queue.length > 0` (and the
+// runtime is not torn down).
+
+const DEFAULT_DRAIN_RETRY_MS = 60_000;
+const MIN_DRAIN_RETRY_MS = 5_000;
+const MAX_DRAIN_RETRY_MS = 600_000;
+
+/**
+ * Idle-watch retry cadence for the drain watchdog. Overridable via
+ * `PI_ROUTINES_DRAIN_RETRY_MS` (integer ms); unparseable values fall back to
+ * 60s and every value is clamped to [5s, 10min]. Read at arm time.
+ */
+export function drainRetryMs(): number {
+	const parsed = Number.parseInt(process.env.PI_ROUTINES_DRAIN_RETRY_MS ?? "", 10);
+	if (Number.isNaN(parsed)) return DEFAULT_DRAIN_RETRY_MS;
+	return Math.min(Math.max(parsed, MIN_DRAIN_RETRY_MS), MAX_DRAIN_RETRY_MS);
+}
+
+/**
+ * Arm the idle-watch retry timer. No-op when already armed. The handle is
+ * unref'd so it never keeps the process alive on its own. A tick whose queue
+ * has gone empty disarms instead of draining; `drainQueue`'s own stale-ctx
+ * defence (stopScheduler on teardown) covers disposal.
+ */
+export function armDrainWatchdog(
+	runtime: RoutineRuntimeState,
+	pi: ExtensionAPI,
+	getCtx: () => ExtensionContext | null,
+): void {
+	if (runtime.drainWatchdog) return;
+	const handle = setInterval(() => {
+		if (runtime.queue.length === 0) {
+			disarmDrainWatchdog(runtime);
+			return;
+		}
+		void drainQueue(runtime, pi, getCtx).catch((err) => {
+			console.error("[pi-routines] drain watchdog tick failed:", err);
+		});
+	}, drainRetryMs());
+	handle.unref();
+	runtime.drainWatchdog = handle;
+}
+
+/** Clear the idle-watch retry timer. Safe to call when not armed. */
+export function disarmDrainWatchdog(runtime: RoutineRuntimeState): void {
+	if (!runtime.drainWatchdog) return;
+	clearInterval(runtime.drainWatchdog);
+	runtime.drainWatchdog = null;
+}
+
+/**
+ * Maintain the watchdog invariant — armed iff the fire queue is non-empty.
+ * Must be called after every queue mutation (enqueue, drain, teardown).
+ */
+export function reconcileDrainWatchdog(
+	runtime: RoutineRuntimeState,
+	pi: ExtensionAPI,
+	getCtx: () => ExtensionContext | null,
+): void {
+	if (runtime.queue.length > 0) {
+		armDrainWatchdog(runtime, pi, getCtx);
+	} else {
+		disarmDrainWatchdog(runtime);
+	}
+}
+
 /**
  * Drain queued routine ids while the session is idle. Stops at the first
  * not-idle indicator (busy ctx, pending messages, in-flight routine turn).
+ * Re-entrant calls (watchdog tick racing agent_end / autoDrain) return
+ * immediately; the in-flight drain re-arms the watchdog on exit if work
+ * remains.
  */
 export async function drainQueue(
 	runtime: RoutineRuntimeState,
 	pi: ExtensionAPI,
 	getCtx: () => ExtensionContext | null,
 ): Promise<void> {
-	while (runtime.queue.length > 0) {
-		let ctx: ExtensionContext | null;
-		try {
-			ctx = getCtx();
-		} catch (err) {
-			if (isStaleCtxError(err)) {
-				console.warn(`[pi-routines] drainQueue: stale ctx; stopping all timers`);
-				stopScheduler(runtime, "stale extension context");
-				return;
+	if (runtime.draining) return;
+	runtime.draining = true;
+	try {
+		while (runtime.queue.length > 0) {
+			let ctx: ExtensionContext | null;
+			try {
+				ctx = getCtx();
+			} catch (err) {
+				if (isStaleCtxError(err)) {
+					console.warn(`[pi-routines] drainQueue: stale ctx; stopping all timers`);
+					stopScheduler(runtime, "stale extension context");
+					return;
+				}
+				throw err;
 			}
-			throw err;
-		}
-		if (!ctx) return;
-		if (guard.isRoutineTurnActive(runtime)) return;
-		if (!ctx.isIdle()) return;
-		if (ctx.hasPendingMessages()) return;
+			if (!ctx) return;
+			if (guard.isRoutineTurnActive(runtime)) return;
+			if (!ctx.isIdle()) return;
+			if (ctx.hasPendingMessages()) return;
 
-		const entry = runtime.queue.shift();
-		if (!entry) return;
-		const id = queueEntryRoutineId(entry);
-		const routine = runtime.store.routines[id];
-		if (!routine) {
-			if (entry.deferredHookId) {
-				runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
-					(item) => item.id !== entry.deferredHookId,
-				);
-				await saveStore(runtime.store, runtime.storeGeneration);
-			}
-			continue;
-		}
-
-		// Belt-and-braces pause gate. The primary gate is at enqueue
-		// (`enqueueTriggerFire`) and at hook pick (`pickHookRoutines`), but a
-		// routine may be paused AFTER it was queued: e.g. user pauses while
-		// another routine is mid-turn. Manual fires (origin.kind === "manual")
-		// are the explicit override path and ignore the flag.
-		if (routine.paused) {
-			if (entry.origin.kind !== "manual") {
-				runtime.apiArgs?.delete(id);
-				runtime.githubEvents?.delete(id);
+			const entry = runtime.queue.shift();
+			if (!entry) return;
+			const id = queueEntryRoutineId(entry);
+			const routine = runtime.store.routines[id];
+			if (!routine) {
 				if (entry.deferredHookId) {
 					runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
 						(item) => item.id !== entry.deferredHookId,
 					);
+					await saveStore(runtime.store, runtime.storeGeneration);
 				}
-				recordSkippedFire(runtime, runtime.store, routine, entry.origin, "paused", entry.runId);
 				continue;
 			}
-		}
 
-		runtime.lastUiCtx = ctx;
-		await fireRoutine(routine, runtime, runtime.store, pi, ctx, entry);
+			// Belt-and-braces pause gate. The primary gate is at enqueue
+			// (`enqueueTriggerFire`) and at hook pick (`pickHookRoutines`), but a
+			// routine may be paused AFTER it was queued: e.g. user pauses while
+			// another routine is mid-turn. Manual fires (origin.kind === "manual")
+			// are the explicit override path and ignore the flag.
+			if (routine.paused) {
+				if (entry.origin.kind !== "manual") {
+					runtime.apiArgs?.delete(id);
+					runtime.githubEvents?.delete(id);
+					if (entry.deferredHookId) {
+						runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
+							(item) => item.id !== entry.deferredHookId,
+						);
+					}
+					recordSkippedFire(runtime, runtime.store, routine, entry.origin, "paused", entry.runId);
+					continue;
+				}
+			}
+
+			runtime.lastUiCtx = ctx;
+			await fireRoutine(routine, runtime, runtime.store, pi, ctx, entry);
+		}
+	} finally {
+		runtime.draining = false;
+		reconcileDrainWatchdog(runtime, pi, getCtx);
 	}
 }
