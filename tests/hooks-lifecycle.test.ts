@@ -18,7 +18,7 @@ const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
 const { registerHooks } = await import("../src/hooks.ts");
-const { stopScheduler } = await import("../src/scheduler.ts");
+const { enqueueRoutineFire, stopScheduler } = await import("../src/scheduler.ts");
 const { emptyStore, flushStoreWrites, saveStore } = await import("../src/store.ts");
 const { stopWidgetRefresh } = await import("../src/widget.ts");
 
@@ -498,5 +498,52 @@ describe("hooks lifecycle", () => {
 		assert.equal(rt.pendingRun, null);
 		assert.equal(rt.store.deferredHooks.length, 1);
 		assert.equal(rt.store.tickState[active.id]?.runs?.at(-1)?.status, "error");
+	});
+
+	it("drains a pulse queued mid-turn via agent_settled (regression: pulse fired only once)", async () => {
+		// A pulse routine whose turn outlives its interval stalls if the queued
+		// fire is never processed. At `agent_end`, Pi's internal run flag is
+		// still set so `ctx.isIdle()` is false and drainQueue bails, leaving
+		// the pulse stuck. `agent_settled` must be the authoritative drain.
+		const routine = pulseRoutine("pulse-once");
+		const rt = makeRuntime();
+		// Stale generation turns fireRoutine's saveStore into a no-op so this
+		// test never writes to the shared STATE_FILE (parallel test isolation).
+		rt.storeGeneration = -1;
+		rt.store.routines[routine.id] = routine;
+		const cap = capturePi();
+		let idle = false; // agent stays busy through agent_end
+		let currentCtx = fakeCtx([], { isIdle: () => idle });
+		registerHooks(
+			cap.pi,
+			rt,
+			() => currentCtx,
+			(ctx) => {
+				currentCtx = ctx;
+			},
+		);
+		const settledHandler = cap.handlers.get("agent_settled");
+		assert.ok(settledHandler, "agent_settled handler must be registered");
+
+		// Enqueue the first fire directly (no session_start needed) to model a
+		// pulse that fired while the previous turn was still in flight.
+		enqueueRoutineFire(routine, { index: 0, kind: "pulse" }, rt, cap.pi, () => currentCtx, {
+			autoDrain: false,
+		});
+
+		// agent_end arrives while the agent is (still) busy -> drainQueue bails.
+		await cap.handlers.get("agent_end")?.({}, currentCtx);
+		assert.equal(cap.sentMessages.length, 0, "agent_end must not fire while not idle");
+		assert.equal(
+			rt.queue.filter((entry) => entry.routineId === routine.id).length,
+			1,
+			"queued pulse must survive the agent_end drain bail",
+		);
+
+		// Agent settles -> isIdle flips true -> agent_settled drains the queue.
+		idle = true;
+		await settledHandler({}, currentCtx);
+		assert.equal(cap.sentMessages.length, 1, "agent_settled must process the stuck pulse");
+		assert.equal(rt.queue.length, 0);
 	});
 });

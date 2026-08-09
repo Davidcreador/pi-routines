@@ -18,6 +18,20 @@ stores migrate automatically.
 
 ### Fixed
 
+- **Pulse routines now keep ticking instead of stalling after the first fire.**
+  At `agent_end`, Pi's internal run flag is still set, so `ctx.isIdle()`
+  returns `false` and `drainQueue` bails out. A pulse that fired during the
+  just-finished turn stayed in the queue forever, and every subsequent pulse
+  was deduped against the stuck entry. Now `agent_settled` drains the queue
+  after Pi's run flag clears, so the routine keeps firing.
+
+### Added
+
+- `agent_settled` lifecycle handler to drain queued pulses when the agent is
+  truly idle (bypassing the `isIdle()` race at `agent_end`).
+
+### Changed
+
 - Shutdown hooks are durably deferred to the next interactive session with a
   bounded transcript snapshot instead of starting an LLM turn during teardown;
   stale snapshots expire after seven days and newer wraps supersede older ones.

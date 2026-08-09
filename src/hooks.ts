@@ -7,6 +7,11 @@
  *   - `agent_end` — release the recursion guard if a routine turn just
  *     finished, drain any queued pulses, and (only on user-driven turns)
  *     fire AT MOST ONE applicable `agent_end` hook routine.
+ *   - `agent_settled` — drain any queued pulses that `agent_end` could not
+ *     process: at `agent_end`, Pi's internal run flag is still set, so
+ *     `ctx.isIdle()` is false and `drainQueue` bails out. `agent_settled`
+ *     is emitted after that flag clears, so queued pulse fires are
+ *     processed there and the routine keeps ticking instead of stalling.
  *   - `session_shutdown` — stop timers, run shutdown hooks (only on `"quit"`,
  *     never on `"reload"`), persist the store, clear the widget.
  *   - `input` — belt-and-suspenders tracker for input events tagged
@@ -153,7 +158,10 @@ export function registerHooks(
 		// shutdown hooks before scheduled work.
 		if (ctx.hasUI) promoteDeferredHooks(runtime, pi, getCtx);
 
-		// Always drain — newly idle ctx may unblock queued pulse routines.
+		// Best-effort drain: at this point Pi's internal run flag is still set
+		// (isIdle() is false), so a pulse that fired during the just-finished
+		// turn stays queued. agent_settled below is the authoritative drain
+		// point once the agent is truly idle.
 		try {
 			await drainQueue(runtime, pi, getCtx);
 		} catch (err) {
@@ -172,6 +180,31 @@ export function registerHooks(
 		}
 
 		if (ctx.hasUI) updateWidget(runtime, ctx);
+	});
+
+	// `agent_end` fires while Pi's internal run flag is still set, so
+	// `ctx.isIdle()` is false there and `drainQueue` cannot process pulses
+	// queued during the turn that just ended. `agent_settled` is emitted
+	// after Pi's run flag clears — the authoritative "agent is idle" point
+	// (per pi docs: "ctx.isIdle() is true here unless another extension
+	// started a new run"). Without this drain, a routine whose turn outlived
+	// its pulse interval stalls forever: the queued fire is never processed
+	// and every later pulse is deduped against the stuck queue entry.
+	//
+	// Use `as any` cast because the pi-coding-agent v0.75.3 types don't
+	// include `agent_settled`, but the runtime supports it.
+	// biome-ignore lint/suspicious/noExplicitAny: <explanation> pi-coding-agent v0.75.3 types lack agent_settled
+	(pi as any).on("agent_settled", async (_event: unknown, ctx: ExtensionContext) => {
+		setCtx(ctx);
+		runtime.lastUiCtx = ctx;
+
+		if (!guard.isRoutineTurnActive(runtime)) {
+			try {
+				await drainQueue(runtime, pi, getCtx);
+			} catch (err) {
+				console.error(`[pi-routines] drainQueue on agent_settled failed:`, err);
+			}
+		}
 	});
 
 	pi.on("session_shutdown", async (event) => {
