@@ -90,11 +90,11 @@ Then install this package:
 pi install npm:@davecodes/pi-routines
 
 # Pinned version
-pi install npm:@davecodes/pi-routines@0.4.0
+pi install npm:@davecodes/pi-routines@0.5.1
 
 # Or directly from GitHub
 pi install git:github.com/Davidcreador/pi-routines
-pi install git:github.com/Davidcreador/pi-routines@v0.4.0
+pi install git:github.com/Davidcreador/pi-routines@v0.5.1
 ```
 
 Project-local install (writes to `.pi/npm/` or `.pi/git/` instead of `~/.pi/agent/`):

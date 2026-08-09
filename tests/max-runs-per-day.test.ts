@@ -21,7 +21,7 @@ const origHome = process.env.HOME;
 process.env.HOME = tmpHome;
 
 const { fireRoutine } = await import("../src/executor.ts");
-const { emptyStore } = await import("../src/store.ts");
+const { emptyStore, flushStoreWrites } = await import("../src/store.ts");
 
 import type { Routine, RoutineRuntimeState } from "../src/types.ts";
 
@@ -30,6 +30,7 @@ import type { Routine, RoutineRuntimeState } from "../src/types.ts";
 // no-op in ESM (`require` is undefined; the try/catch swallowed the
 // ReferenceError), leaking the temp dir at process exit.
 after(async () => {
+	await flushStoreWrites();
 	if (origHome === undefined) delete process.env.HOME;
 	else process.env.HOME = origHome;
 	await fs.rm(tmpHome, { recursive: true, force: true });
