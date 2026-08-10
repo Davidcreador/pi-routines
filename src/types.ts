@@ -305,6 +305,10 @@ export interface RoutineRuntimeState {
 	timers: Map<string, Array<ReturnType<typeof setInterval> | null>>;
 	/** routine fires waiting for an idle slot (FIFO). */
 	queue: RoutineQueueEntry[];
+	/** Idle-watch retry timer; armed iff the fire queue is non-empty. Owned by scheduler.ts. */
+	drainWatchdog?: ReturnType<typeof setInterval> | null;
+	/** Re-entrancy guard for drainQueue (watchdog tick + agent_end + autoDrain can race). */
+	draining?: boolean;
 	/** Store writer generation; stale extension instances cannot overwrite disk. */
 	storeGeneration?: number;
 	/** Recursion guard — set true while a routine turn is in flight. */

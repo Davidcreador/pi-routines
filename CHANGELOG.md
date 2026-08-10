@@ -3,6 +3,18 @@
 All notable changes to `pi-routines` are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- Queued routine fires can no longer starve when the session stays busy
+  across every drain trigger (enqueue, `agent_end`, `session_start`, manual
+  commands). A new drain watchdog re-attempts the idle-aware queue drain on a
+  fixed cadence while the queue is non-empty — default 60s, overridable via
+  `PI_ROUTINES_DRAIN_RETRY_MS` (clamped to 5s–10min) — and disarms as soon as
+  the queue empties or the scheduler stops. `drainQueue` is now also
+  re-entrancy safe against racing drain triggers.
+
 ## 0.5.1 — 2026-07-09
 
 Patch release: make temporary-state test cleanup deterministic on macOS and

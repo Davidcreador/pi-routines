@@ -20,7 +20,12 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { nanoid } from "nanoid";
 import { describeTrigger, describeTriggers } from "../format.ts";
 import { nextCronFire, parseCron, parseInterval, parseOneOff } from "../parser.ts";
-import { queueEntryRoutineId, scheduleRoutine, unscheduleRoutine } from "../scheduler.ts";
+import {
+	disarmDrainWatchdog,
+	queueEntryRoutineId,
+	scheduleRoutine,
+	unscheduleRoutine,
+} from "../scheduler.ts";
 import { saveStore } from "../store.ts";
 import { revokeToken } from "../tokens.ts";
 import type {
@@ -425,6 +430,10 @@ export async function deleteRoutine(
 	);
 	// Drop the routine from any pending queue position.
 	runtime.queue = runtime.queue.filter((entry) => queueEntryRoutineId(entry) !== routine.id);
+	// Keep the drain-watchdog invariant (armed iff queue non-empty): if the
+	// delete emptied the queue, disarm now instead of at the next tick.
+	// (_mutate has no pi/getCtx, so full reconcile is unavailable here.)
+	if (runtime.queue.length === 0) disarmDrainWatchdog(runtime);
 	delete runtime.store.routines[routine.id];
 	delete runtime.store.tickState[routine.id];
 	await saveStore(runtime.store, runtime.storeGeneration);
