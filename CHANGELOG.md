@@ -17,6 +17,13 @@ All notable changes to `pi-routines` are documented here. Versions follow
   fresh lifecycle pick, and single-fire origins dedup per routine while
   `api`/`github` entries stack. Deferred shutdown hooks are unchanged — they
   already persist via `deferredHooks`. Headless print mode never rehydrates.
+- The footer widget now surfaces queue health: while the fire queue is
+  non-empty it shows `⚠ N queued, oldest Xm` (ages compact to hours/days),
+  and skipped runs in the trailing 24h surface as `N skips/24h`. The age
+  display reads each entry's enqueue timestamp (`queuedAt`). The widget
+  refresh interval now also runs while the queue is non-empty, even when no
+  timed routines exist, so a starving queue's age keeps ticking. Starvation
+  was previously invisible unless you read `/routine-runs`.
 
 ### Fixed
 
