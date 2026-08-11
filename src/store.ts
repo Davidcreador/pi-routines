@@ -19,6 +19,7 @@ import { dirname } from "node:path";
 import type {
 	DeferredHookFire,
 	Routine,
+	RoutineQueueEntry,
 	RoutineRun,
 	RoutineStore,
 	RoutineTickState,
@@ -27,6 +28,7 @@ import type {
 import {
 	MAX_DEFERRED_HOOKS,
 	MAX_DEFERRED_TRANSCRIPT_BYTES,
+	MAX_QUEUE_DEPTH,
 	MAX_RUN_HISTORY,
 	MAX_USER_STATE_BYTES,
 	SCHEMA_VERSION,
@@ -35,7 +37,13 @@ import {
 
 /** Fresh, empty store. */
 export function emptyStore(): RoutineStore {
-	return { schemaVersion: SCHEMA_VERSION, routines: {}, tickState: {}, deferredHooks: [] };
+	return {
+		schemaVersion: SCHEMA_VERSION,
+		routines: {},
+		tickState: {},
+		deferredHooks: [],
+		pendingQueue: [],
+	};
 }
 
 /**
@@ -72,6 +80,7 @@ export function migrateV1ToV2(raw: unknown): RoutineStore {
 		routines: routinesOut as unknown as RoutineStore["routines"],
 		tickState: (obj.tickState ?? {}) as RoutineStore["tickState"],
 		deferredHooks: [],
+		pendingQueue: [],
 	};
 }
 
@@ -360,6 +369,51 @@ function sanitizeDeferredHook(
 	};
 }
 
+const QUEUE_ORIGIN_KINDS = new Set(["pulse", "cron", "oneoff", "hook", "github", "api", "manual"]);
+
+/**
+ * Validate one persisted queued fire. Shape-only, EXCEPT that the owning
+ * routine must still exist: a queued fire for a deleted routine can never
+ * run, so — exactly like {@link sanitizeDeferredHook} — it is dropped at
+ * load rather than resurrected into an orphan tickState later. Entries
+ * carrying `deferredHookId` are rejected: deferred hooks persist via
+ * `deferredHooks`, and mirroring them here would double-replay.
+ */
+function sanitizeQueueEntry(
+	value: unknown,
+	routines: Record<string, Routine>,
+): RoutineQueueEntry | null {
+	if (!isRecord(value)) return null;
+	if (
+		typeof value.routineId !== "string" ||
+		!routines[value.routineId] ||
+		typeof value.runId !== "string" ||
+		value.deferredHookId !== undefined
+	) {
+		return null;
+	}
+	const origin = value.origin;
+	if (
+		!isRecord(origin) ||
+		!Number.isInteger(origin.index) ||
+		(origin.index as number) < -1 ||
+		!QUEUE_ORIGIN_KINDS.has(String(origin.kind))
+	) {
+		return null;
+	}
+	if (
+		(value.queuedAt !== undefined && !finiteNumber(value.queuedAt)) ||
+		(value.apiArgs !== undefined && !isRecord(value.apiArgs)) ||
+		(value.githubEvent !== undefined && !isRecord(value.githubEvent)) ||
+		!optionalString(value.contextNote) ||
+		!optionalString(value.hookOnceKey) ||
+		(value.hookOnce !== undefined && !["daily", "per_session"].includes(String(value.hookOnce)))
+	) {
+		return null;
+	}
+	return value as unknown as RoutineQueueEntry;
+}
+
 /** Validate and sanitize parsed state so one malformed routine cannot break startup. */
 export function sanitizeStore(raw: unknown, migrateLegacyDaily = false): RoutineStore {
 	if (!isRecord(raw)) return emptyStore();
@@ -394,7 +448,13 @@ export function sanitizeStore(raw: unknown, migrateLegacyDaily = false): Routine
 		.filter((value): value is DeferredHookFire => value !== null)
 		.sort((a, b) => a.deferredAt - b.deferredAt)
 		.slice(-MAX_DEFERRED_HOOKS);
-	return { schemaVersion: SCHEMA_VERSION, routines, tickState, deferredHooks };
+	// Queued fires are FIFO (oldest first); if a corrupt store over-fills the
+	// list keep the head — those are the fires that would have run first.
+	const pendingQueue = (Array.isArray(raw.pendingQueue) ? raw.pendingQueue : [])
+		.map((value) => sanitizeQueueEntry(value, routines))
+		.filter((value): value is RoutineQueueEntry => value !== null)
+		.slice(0, MAX_QUEUE_DEPTH);
+	return { schemaVersion: SCHEMA_VERSION, routines, tickState, deferredHooks, pendingQueue };
 }
 
 /**

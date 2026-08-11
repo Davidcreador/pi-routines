@@ -428,8 +428,12 @@ export async function deleteRoutine(
 	runtime.store.deferredHooks = runtime.store.deferredHooks.filter(
 		(item) => item.routineId !== routine.id,
 	);
-	// Drop the routine from any pending queue position.
+	// Drop the routine from any pending queue position — in memory AND in the
+	// persisted mirror, so a deleted routine's fires cannot rehydrate.
 	runtime.queue = runtime.queue.filter((entry) => queueEntryRoutineId(entry) !== routine.id);
+	runtime.store.pendingQueue = (runtime.store.pendingQueue ?? []).filter(
+		(entry) => entry.routineId !== routine.id,
+	);
 	// Keep the drain-watchdog invariant (armed iff queue non-empty): if the
 	// delete emptied the queue, disarm now instead of at the next tick.
 	// (_mutate has no pi/getCtx, so full reconcile is unavailable here.)

@@ -5,6 +5,19 @@ All notable changes to `pi-routines` are documented here. Versions follow
 
 ## Unreleased
 
+### Added
+
+- Queued routine fires now persist across session teardown. The fire queue is
+  mirrored into `state.json` (`pendingQueue`) on every mutation and
+  re-enqueued at the next interactive `session_start`, so a quit or crash no
+  longer loses work waiting for an idle slot. Survivors keep their original
+  run id and enqueue time; entries older than 24 hours expire with an
+  audited `"queued fire expired"` skip, paused routines are skipped like
+  live enqueues, `session_start` hook fires are dropped as superseded by the
+  fresh lifecycle pick, and single-fire origins dedup per routine while
+  `api`/`github` entries stack. Deferred shutdown hooks are unchanged — they
+  already persist via `deferredHooks`. Headless print mode never rehydrates.
+
 ### Fixed
 
 - Queued routine fires can no longer starve when the session stays busy

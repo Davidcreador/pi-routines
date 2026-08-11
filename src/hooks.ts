@@ -2,8 +2,9 @@
  * @file hooks.ts — pi lifecycle subscribers that drive the routine lifecycle.
  *
  * Owns:
- *   - `session_start` — load persisted store, schedule pulse routines, fire
- *     applicable `session_start` hook routines, refresh the widget.
+ *   - `session_start` — load persisted store, rehydrate queued fires that
+ *     survived the previous session's teardown, schedule pulse routines,
+ *     fire applicable `session_start` hook routines, refresh the widget.
  *   - `agent_end` — release the recursion guard if a routine turn just
  *     finished, drain any queued pulses, and (only on user-driven turns)
  *     fire AT MOST ONE applicable `agent_end` hook routine.
@@ -35,7 +36,13 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { nanoid } from "nanoid";
 import { recordRun, recordSkippedFire } from "./executor.ts";
 import * as guard from "./guard.ts";
-import { drainQueue, enqueueRoutineFire, scheduleRoutine, stopScheduler } from "./scheduler.ts";
+import {
+	drainQueue,
+	enqueueRoutineFire,
+	rehydrateQueuedFires,
+	scheduleRoutine,
+	stopScheduler,
+} from "./scheduler.ts";
 import { restartServerIfConfigured } from "./server.ts";
 import { loadStore, saveStore } from "./store.ts";
 import type { HookTrigger, Routine, RoutineRuntimeState } from "./types.ts";
@@ -72,8 +79,9 @@ export function registerHooks(
 			guard.resetSessionHookFires(runtime);
 		}
 
-		// Reload the persisted store. Any queue on this runtime cannot survive
-		// the session transition and is recorded before being cleared.
+		// Reload the persisted store. The in-memory queue is cleared, but its
+		// entries survive in `store.pendingQueue` (write-through mirror) and
+		// are re-enqueued below via rehydrateQueuedFires.
 		stopScheduler(runtime, event.reason === "reload" ? "reload" : "session restart");
 		stopWidgetRefresh(runtime);
 		runtime.store = await loadStore(runtime.storeGeneration);
@@ -84,12 +92,19 @@ export function registerHooks(
 		runtime.pendingRun = null;
 
 		// Print mode: register-only path. No timers, no widget, no hook fires.
+		// The persisted queue is deliberately NOT rehydrated here: a headless
+		// run must not consume interactive-session work.
 		if (!ctx.hasUI) return;
 		try {
 			await restartServerIfConfigured(runtime, { pi, getCtx });
 		} catch (err) {
 			console.error("[pi-routines] could not restart API server after reload:", err);
 		}
+
+		// Re-enqueue fires that survived the previous session's teardown. Runs
+		// before fresh hook picks / timer enqueues so dedup drops the fresh
+		// duplicates, not the survivors (which keep their original runId/age).
+		rehydrateQueuedFires(runtime, pi, getCtx);
 
 		// Re-arm timers for every routine; scheduler decides per trigger.
 		for (const routine of Object.values(runtime.store.routines)) {
