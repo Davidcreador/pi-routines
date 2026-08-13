@@ -105,7 +105,8 @@ pi install -l npm:@davecodes/pi-routines
 
 Restart pi (or run `/reload`) — the extension auto-loads. You'll see new slash
 commands (`/routine`, `/routines`, `/routine-install`, …) and a footer widget
-showing active routine count.
+showing active routine count. The widget also surfaces queue health: a
+queue-age warning while fires wait for an idle slot, and a 24h skip counter.
 
 > ⚠️ **Security:** pi packages run with full system access. Review the source
 > before installing third-party packages.
@@ -337,6 +338,11 @@ in-memory state. State and token files are written with owner-only `0600` mode.
   API server on `/reload`.
 - **Silent mode** — routines marked `quiet: true` whose response is exactly `[~]` are
   suppressed from chat output (still counted as a tick; status recorded as `silent`).
+- **Queue starvation is visible in the footer.** While the fire queue is non-empty
+  the widget shows `⚠ N queued, oldest Xm` (age from each entry's enqueue
+  timestamp), and any skipped runs in the trailing 24h surface as `N skips/24h`.
+  The refresh interval runs while work is queued even for hook-only routines, so
+  a starving queue keeps ticking instead of going stale.
 - **HTTP server defense-in-depth** — 127.0.0.1 bind, per-request loopback re-check,
   Host header allowlist, 4 KiB body cap, per-token leaky bucket, `timingSafeEqual`.
 

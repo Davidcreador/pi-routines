@@ -9,8 +9,13 @@
  * Refresh strategy: `updateWidget` is fire-and-forget on each routine
  * lifecycle event. `startWidgetRefresh` adds a low-frequency interval
  * (default 10s) so "next fire in Xm" countdowns drift down smoothly without
- * waking on every second. If no timed routines are active we skip the
- * interval entirely.
+ * waking on every second. If no timed routines are active and the fire queue
+ * is empty we skip the interval entirely.
+ *
+ * Health surfacing: when the fire queue is non-empty the line shows a
+ * queue-age warning (starvation is otherwise invisible until someone reads
+ * `/routine-runs`), and when any routine recorded skipped runs in the last
+ * 24h the line shows a `N skips/24h` counter.
  */
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -20,6 +25,9 @@ const STATUS_KEY = "routines";
 const DEFAULT_REFRESH_MS = 10_000;
 const MAX_DISPLAYED = 3;
 const NAME_MAX_LEN = 12;
+
+/** Trailing window for the widget's skip-rate counter. */
+const SKIPPED_WINDOW_MS = 24 * 60 * 60_000;
 
 /**
  * Recompute the footer status text from `runtime` and publish it via
@@ -52,8 +60,10 @@ export function clearWidget(ctx: ExtensionContext): void {
  * between explicit lifecycle updates.
  *
  * Returns an idempotent stop function. If no timed routines exist at call
- * time the interval is not started and the returned stop is a no-op — call
- * `startWidgetRefresh` again after creating a pulse routine.
+ * time AND the fire queue is empty, the interval is not started and the
+ * returned stop is a no-op — call `startWidgetRefresh` again after creating
+ * a pulse routine. A non-empty queue starts the interval even without timed
+ * routines so the queue-age warning keeps ticking while work starves.
  */
 export function startWidgetRefresh(
 	runtime: RoutineRuntimeState,
@@ -63,7 +73,7 @@ export function startWidgetRefresh(
 	const hasTimed = Object.values(runtime.store.routines).some((r) =>
 		r.triggers.some((t) => t.kind === "pulse" || t.kind === "cron" || t.kind === "oneoff"),
 	);
-	if (!hasTimed) return () => {};
+	if (!hasTimed && runtime.queue.length === 0) return () => {};
 
 	const handle = setInterval(() => {
 		const ctx = getCtx();
@@ -104,7 +114,58 @@ function formatStatus(routines: Routine[], runtime: RoutineRuntimeState): string
 	const rest = routines.length - head.length;
 	const entries = head.map((r) => `${truncateName(r.name)}(${tag(r, runtime)})`);
 	const tail = rest > 0 ? `  +${rest} more` : "";
-	return `↺ ${routines.length} active  ${entries.join(" · ")}${tail}`;
+	return `↺ ${routines.length} active  ${entries.join(" · ")}${tail}${formatHealth(runtime)}`;
+}
+
+/**
+ * Queue-age and skip-rate health segments, appended only when something
+ * needs attention. Empty string when the queue is empty and no routine
+ * recorded a skipped run in the last {@link SKIPPED_WINDOW_MS}.
+ */
+function formatHealth(runtime: RoutineRuntimeState): string {
+	const segments: string[] = [];
+	if (runtime.queue.length > 0) {
+		const oldest = oldestQueuedAgeMs(runtime);
+		segments.push(
+			oldest === null
+				? `⚠ ${runtime.queue.length} queued`
+				: `⚠ ${runtime.queue.length} queued, oldest ${formatAge(oldest)}`,
+		);
+	}
+	const skips = skippedRunsInWindow(runtime);
+	if (skips > 0) segments.push(`${skips} skips/24h`);
+	return segments.length > 0 ? `  ${segments.join(" · ")}` : "";
+}
+
+/** Age of the longest-waiting queued fire; null when no entry carries a timestamp. */
+function oldestQueuedAgeMs(runtime: RoutineRuntimeState): number | null {
+	let oldest: number | null = null;
+	for (const entry of runtime.queue) {
+		if (typeof entry.queuedAt !== "number") continue;
+		const age = Date.now() - entry.queuedAt;
+		oldest = oldest === null ? age : Math.max(oldest, age);
+	}
+	return oldest;
+}
+
+function formatAge(ms: number): string {
+	const minutes = Math.max(0, Math.floor(ms / 60_000));
+	if (minutes < 60) return `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h`;
+	return `${Math.floor(hours / 24)}d`;
+}
+
+/** Skipped runs across all routines within the trailing 24h window. */
+function skippedRunsInWindow(runtime: RoutineRuntimeState): number {
+	const cutoff = Date.now() - SKIPPED_WINDOW_MS;
+	let count = 0;
+	for (const tickState of Object.values(runtime.store.tickState)) {
+		for (const run of tickState.runs ?? []) {
+			if (run.status === "skipped" && run.startedAt >= cutoff) count++;
+		}
+	}
+	return count;
 }
 
 function lastRunGlyph(runtime: RoutineRuntimeState, routineId: string): string {
