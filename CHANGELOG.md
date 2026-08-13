@@ -7,6 +7,14 @@ All notable changes to `pi-routines` are documented here. Versions follow
 
 ### Added
 
+- Cron/pulse routines get bounded missed-tick catch-up at `session_start`:
+  when the latest scheduled slot passed while no interactive session was
+  live, the routine fires once at startup for the trigger with the oldest
+  missed slot, with a `contextNote` marking it as a catch-up. Anchored on
+  `max(lastFiredAt, createdAt)` so newly created routines never retro-fire;
+  paused, already-queued, and in-flight routines are skipped, and the
+  `maxRunsPerDay`/`maxTicks` gates apply as usual. One-off triggers are
+  unchanged (past one-offs remain marked spent at arm time).
 - Queued routine fires now persist across session teardown. The fire queue is
   mirrored into `state.json` (`pendingQueue`) on every mutation and
   re-enqueued at the next interactive `session_start`, so a quit or crash no
