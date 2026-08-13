@@ -253,6 +253,12 @@ export interface RoutineQueueEntry {
 	routineId: string;
 	runId: string;
 	origin: RoutineFireOrigin;
+	/**
+	 * Epoch millis when the entry was enqueued. Optional for back-compat with
+	 * entries constructed by older code; rehydration treats a missing value
+	 * as "enqueued now" rather than expiring the fire.
+	 */
+	queuedAt?: number;
 	apiArgs?: Record<string, unknown>;
 	githubEvent?: Record<string, unknown>;
 	/** Extra bounded context, used by deferred shutdown hooks. */
@@ -290,6 +296,16 @@ export interface RoutineStore {
 	tickState: Record<string, RoutineTickState>;
 	/** Shutdown hooks waiting for the next interactive session. */
 	deferredHooks: DeferredHookFire[];
+	/**
+	 * Queued routine fires awaiting an idle slot, mirrored from
+	 * {@link RoutineRuntimeState.queue} on every mutation so a session
+	 * teardown no longer loses them. Re-enqueued by
+	 * `scheduler.rehydrateQueuedFires` at the next interactive
+	 * `session_start`. Deferred-hook entries are excluded — they already
+	 * persist via {@link deferredHooks}. Additive in schema v3: stores
+	 * written before this field existed sanitize to an empty list.
+	 */
+	pendingQueue: RoutineQueueEntry[];
 }
 
 // ─── Non-persisted runtime state ─────────────────────────────────────────────
@@ -303,7 +319,10 @@ export interface RoutineRuntimeState {
 	 * one-off triggers.
 	 */
 	timers: Map<string, Array<ReturnType<typeof setInterval> | null>>;
-	/** routine fires waiting for an idle slot (FIFO). */
+	/**
+	 * routine fires waiting for an idle slot (FIFO). Mirrored into
+	 * {@link RoutineStore.pendingQueue} on every mutation.
+	 */
 	queue: RoutineQueueEntry[];
 	/** Idle-watch retry timer; armed iff the fire queue is non-empty. Owned by scheduler.ts. */
 	drainWatchdog?: ReturnType<typeof setInterval> | null;
@@ -429,8 +448,20 @@ export const MAX_QUEUE_DEPTH = 3;
 /** Max per-routine userState size in bytes (JSON.stringify). */
 export const MAX_USER_STATE_BYTES = 2048;
 
-/** Current persisted-store schema version. v3 adds deferred shutdown hooks. */
+/**
+ * Current persisted-store schema version. v3 adds deferred shutdown hooks.
+ * `pendingQueue` was added later as an additive, optional-on-disk field
+ * (absent = empty), deliberately without a version bump: bumping would make
+ * older extension builds refuse to load the store at all, while an older
+ * build reading a store that carries `pendingQueue` simply ignores it.
+ */
 export const SCHEMA_VERSION = 3 as const;
+
+/**
+ * Rehydrated queued fires older than this are dropped with an audited
+ * `"queued fire expired"` skip record instead of firing stale work.
+ */
+export const MAX_QUEUED_FIRE_AGE_MS = 24 * 60 * 60_000;
 
 /** Window within which fires from distinct triggers on the same routine
  *  collapse into a single enqueue (multi-trigger dedup). */

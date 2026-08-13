@@ -90,8 +90,11 @@ const liveRuntimes: RoutineRuntimeState[] = [];
  * fs writes (saveStore), whose continuations land on the real event loop.
  */
 async function flushDrain(): Promise<void> {
-	await flushStoreWrites();
+	// Alternate chain flushes and loop yields: the drain continuation after
+	// each awaited write (persistQueue on shift, saveStore in fireRoutine)
+	// can queue the NEXT write, which only a later flushStoreWrites catches.
 	for (let i = 0; i < 10; i++) {
+		await flushStoreWrites();
 		await new Promise((resolve) => setImmediate(resolve));
 	}
 }

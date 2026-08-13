@@ -4,6 +4,10 @@
  * Owns:
  *   - `setInterval` handles, one per pulse routine, stored in `runtime.timers`.
  *   - The FIFO fire queue (`runtime.queue`), with dedup + backpressure cap.
+ *   - Queue persistence: `runtime.queue` is mirrored into
+ *     `store.pendingQueue` on every mutation and re-enqueued by
+ *     {@link rehydrateQueuedFires} at the next interactive `session_start`,
+ *     so session teardown no longer loses queued fires.
  *   - The idle-aware `drainQueue` loop that hands work to `executor.fireRoutine`.
  *   - The drain watchdog (`runtime.drainWatchdog`), an idle-watch retry timer
  *     armed iff the fire queue is non-empty, so queued fires cannot starve
@@ -28,7 +32,7 @@ import * as guard from "./guard.ts";
 import { nextCronFire, parseOneOff } from "./parser.ts";
 import { saveStore } from "./store.ts";
 import type { Routine, RoutineQueueEntry, RoutineRuntimeState, RoutineTrigger } from "./types.ts";
-import { MAX_QUEUE_DEPTH, MULTI_TRIGGER_COLLAPSE_MS } from "./types.ts";
+import { MAX_QUEUE_DEPTH, MAX_QUEUED_FIRE_AGE_MS, MULTI_TRIGGER_COLLAPSE_MS } from "./types.ts";
 
 const STALE_CTX_MARKER = "Extension context no longer active";
 
@@ -60,7 +64,14 @@ function getEnqueueMap(runtime: RoutineRuntimeState): Map<string, number> {
 	return m;
 }
 
-/** Clear every active timer and audit queued work that cannot survive teardown. */
+/**
+ * Clear every active timer and the in-memory fire queue. Queued fires are
+ * NOT dropped: `store.pendingQueue` still mirrors them (see
+ * {@link persistQueue}), so the next interactive session re-enqueues them
+ * via {@link rehydrateQueuedFires}. Teardown therefore records no per-entry
+ * skip — nothing was lost — unlike the deferred-hook drops, which remain
+ * audited at their own expiry.
+ */
 export function stopScheduler(runtime: RoutineRuntimeState, reason?: string): void {
 	for (const handles of runtime.timers.values()) {
 		for (const h of handles) {
@@ -69,12 +80,28 @@ export function stopScheduler(runtime: RoutineRuntimeState, reason?: string): vo
 	}
 	runtime.timers.clear();
 	disarmDrainWatchdog(runtime);
-	if (reason) {
-		while (runtime.queue.length > 0) dropOldestQueuedFire(runtime, reason);
-	} else {
-		runtime.queue.length = 0;
+	if (reason && runtime.queue.length > 0) {
+		console.warn(
+			`[pi-routines] scheduler stopped (${reason}); ${runtime.queue.length} queued fire(s) persist for the next session`,
+		);
 	}
+	runtime.queue.length = 0;
 	getEnqueueMap(runtime).clear();
+}
+
+/**
+ * Mirror the in-memory fire queue into `store.pendingQueue` and persist.
+ * Called after EVERY queue mutation (enqueue, overflow drop, drain shift)
+ * so a crash or quit at any point leaves the store at most one mutation
+ * behind. Deferred-hook entries are excluded: their backing records already
+ * persist in `store.deferredHooks` and re-enqueue via `promoteDeferredHooks`.
+ * Returns the saveStore promise so drainQueue can await durability before
+ * opening a turn (at-least-once across crashes, never phantom-double-fire
+ * from a torn write).
+ */
+export function persistQueue(runtime: RoutineRuntimeState): Promise<void> {
+	runtime.store.pendingQueue = runtime.queue.filter((entry) => !entry.deferredHookId);
+	return saveStore(runtime.store, runtime.storeGeneration);
 }
 
 export function queueEntryRoutineId(entry: RoutineQueueEntry): string {
@@ -85,13 +112,10 @@ export function queueHasRoutine(runtime: RoutineRuntimeState, routineId: string)
 	return runtime.queue.some((entry) => queueEntryRoutineId(entry) === routineId);
 }
 
-function dropOldestQueuedFire(runtime: RoutineRuntimeState, reason: string): void {
-	dropQueuedFireAt(runtime, 0, reason);
-}
-
 function dropQueuedFireAt(runtime: RoutineRuntimeState, index: number, reason: string): void {
 	const [dropped] = runtime.queue.splice(index, 1);
 	if (!dropped) return;
+	void persistQueue(runtime);
 	const routine = runtime.store.routines[dropped.routineId];
 	if (!routine) return;
 	recordSkippedFire(runtime, runtime.store, routine, dropped.origin, reason, dropped.runId);
@@ -99,6 +123,8 @@ function dropQueuedFireAt(runtime: RoutineRuntimeState, index: number, reason: s
 
 export interface QueueMetadata {
 	runId?: string;
+	/** Original enqueue time, preserved by rehydration; defaults to now. */
+	queuedAt?: number;
 	apiArgs?: Record<string, unknown>;
 	githubEvent?: Record<string, unknown>;
 	contextNote?: string;
@@ -131,13 +157,22 @@ export function enqueueRoutineFire(
 		}
 		dropQueuedFireAt(runtime, normalIndex >= 0 ? normalIndex : 0, "queue overflow");
 	}
-	const entry = { routineId: routine.id, runId, origin, ...entryMetadata };
+	const entry: RoutineQueueEntry = {
+		routineId: routine.id,
+		runId,
+		origin,
+		...entryMetadata,
+		// After the spread so an explicit `queuedAt: undefined` in metadata
+		// cannot blank the computed default.
+		queuedAt: entryMetadata.queuedAt ?? Date.now(),
+	};
 	if (priority) {
 		const firstNormal = runtime.queue.findIndex((queued) => !queued.deferredHookId);
 		runtime.queue.splice(firstNormal >= 0 ? firstNormal : runtime.queue.length, 0, entry);
 	} else {
 		runtime.queue.push(entry);
 	}
+	void persistQueue(runtime);
 	reconcileDrainWatchdog(runtime, pi, getCtx);
 	if (autoDrain) {
 		void drainQueue(runtime, pi, getCtx).catch((err) => {
@@ -371,6 +406,110 @@ export function enqueueFireRequest(
 	return enqueueRoutineFire(live, origin, runtime, pi, getCtx, payload);
 }
 
+/**
+ * Re-enqueue queued fires that survived a previous session's teardown via
+ * `store.pendingQueue`. Called once per interactive `session_start`, after
+ * the store is loaded and before timers / hook picks enqueue fresh work.
+ *
+ * Per-entry fate:
+ *   - owning routine deleted     → dropped (already filtered at load; this
+ *                                  is a defensive console.warn only)
+ *   - `session_start` hook fire  → skipped (`"superseded by fresh
+ *                                  session_start hook"`): the lifecycle
+ *                                  pick below re-enqueues it anyway
+ *   - routine paused             → skipped (`"paused"`), matching the live
+ *                                  enqueue gate
+ *   - older than MAX_QUEUED_FIRE_AGE_MS → skipped (`"queued fire expired"`)
+ *     rather than firing stale work
+ *   - duplicate of an already-queued single-fire origin (anything except
+ *     api/github, which legitimately stack) → skipped (`"routine already
+ *     queued"`)
+ *   - otherwise                  → re-enqueued with its original runId,
+ *                                  queuedAt, payloads, and hook-once keys
+ *
+ * The persisted list is cleared up front (and the clear committed to disk)
+ * BEFORE anything can fire: entries re-enter via `enqueueRoutineFire`, whose
+ * own persistQueue write-through re-mirrors them, so a crash mid-rehydrate
+ * cannot double-fire work that already started.
+ */
+export function rehydrateQueuedFires(
+	runtime: RoutineRuntimeState,
+	pi: ExtensionAPI,
+	getCtx: () => ExtensionContext | null,
+): void {
+	const persisted = runtime.store.pendingQueue ?? [];
+	if (persisted.length === 0) return;
+	runtime.store.pendingQueue = [];
+	void saveStore(runtime.store, runtime.storeGeneration);
+
+	const now = Date.now();
+	const seenSingleFire = new Set<string>();
+	for (const entry of persisted) {
+		const routine = runtime.store.routines[entry.routineId];
+		if (!routine) {
+			console.warn(`[pi-routines] dropping queued fire for unknown routine '${entry.routineId}'`);
+			continue;
+		}
+		const origin = entry.origin;
+		const trigger = routine.triggers[origin.index];
+		if (origin.kind === "hook" && trigger?.kind === "hook" && trigger.event === "session_start") {
+			recordSkippedFire(
+				runtime,
+				runtime.store,
+				routine,
+				origin,
+				"superseded by fresh session_start hook",
+				entry.runId,
+			);
+			continue;
+		}
+		if (routine.paused) {
+			recordSkippedFire(runtime, runtime.store, routine, origin, "paused", entry.runId);
+			continue;
+		}
+		const queuedAt = entry.queuedAt ?? now;
+		if (now - queuedAt > MAX_QUEUED_FIRE_AGE_MS) {
+			recordSkippedFire(
+				runtime,
+				runtime.store,
+				routine,
+				origin,
+				"queued fire expired",
+				entry.runId,
+			);
+			continue;
+		}
+		// api/github origins legitimately stack multiple entries per routine
+		// (one per event); every other origin fires once per routine at a time.
+		const stacksPerRoutine = origin.kind === "api" || origin.kind === "github";
+		if (
+			!stacksPerRoutine &&
+			(seenSingleFire.has(routine.id) || queueHasRoutine(runtime, routine.id))
+		) {
+			recordSkippedFire(
+				runtime,
+				runtime.store,
+				routine,
+				origin,
+				"routine already queued",
+				entry.runId,
+			);
+			continue;
+		}
+		seenSingleFire.add(routine.id);
+		enqueueRoutineFire(routine, origin, runtime, pi, getCtx, {
+			runId: entry.runId,
+			queuedAt,
+			apiArgs: entry.apiArgs,
+			githubEvent: entry.githubEvent,
+			contextNote: entry.contextNote,
+			hookOnceKey: entry.hookOnceKey,
+			hookOnce: entry.hookOnce,
+			autoDrain: false,
+		});
+	}
+}
+
 /** Clear all timers for a single routine. Safe to call if none exist. */
 export function unscheduleRoutine(routineId: string, runtime: RoutineRuntimeState): void {
 	const handles = runtime.timers.get(routineId);
@@ -491,6 +630,9 @@ export async function drainQueue(
 
 			const entry = runtime.queue.shift();
 			if (!entry) return;
+			// Persist the removal BEFORE opening a turn: a crash mid-turn must
+			// not leave the entry on disk to be rehydrated into a second fire.
+			await persistQueue(runtime);
 			const id = queueEntryRoutineId(entry);
 			const routine = runtime.store.routines[id];
 			if (!routine) {

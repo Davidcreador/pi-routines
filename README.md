@@ -312,6 +312,16 @@ in-memory state. State and token files are written with owner-only `0600` mode.
   session after shutdown handlers, so the extension stores a bounded transcript
   snapshot and runs the hook at the next interactive session. Reload does not
   create a deferred fire; unreplayed snapshots expire after seven days.
+- **Queued fires persist across sessions.** The fire queue is mirrored into
+  `state.json` on every mutation and re-enqueued at the next interactive
+  `session_start` — a quit or crash no longer loses work that was waiting for
+  an idle slot. Rehydrated entries keep their original enqueue time and run id;
+  entries older than 24h expire with an audited skip record, paused routines
+  are skipped like live enqueues, and `session_start` hook fires are dropped
+  as superseded (the lifecycle pick re-enqueues them anyway). Deferred
+  shutdown hooks are not mirrored — they already persist via `deferredHooks`.
+  Headless print mode (`pi --print`) never rehydrates: a one-shot CLI run
+  must not consume interactive-session work.
 - **At most one `agent_end` hook fires per user-driven turn** — protects against
   loops when a routine's response triggers `agent_end` itself. Enforced both
   globally (across routines) and within a single routine's trigger list.
@@ -340,6 +350,17 @@ non-empty, an unref'd watchdog timer re-attempts the idle-aware drain every
 5s–10min). It never fires into a busy session: the usual idle / pending /
 routine-turn gates still apply on every retry, and the timer disarms as soon
 as the queue empties or the scheduler stops.
+
+### Queue persistence
+
+The in-memory fire queue is mirrored into `state.json` (`pendingQueue`) on
+every mutation — enqueue, overflow drop, drain shift — so teardown is
+non-lossy: `stopScheduler` no longer records per-entry drops, because nothing
+is dropped. At the next interactive `session_start`, `rehydrateQueuedFires`
+re-enqueues survivors (clearing the persisted list first, so a crash
+mid-rehydrate cannot double-fire work that already started). Single-fire
+origins dedup per routine; `api`/`github` entries stack, matching live
+enqueue semantics.
 
 ---
 
