@@ -8,6 +8,9 @@
  *     `store.pendingQueue` on every mutation and re-enqueued by
  *     {@link rehydrateQueuedFires} at the next interactive `session_start`,
  *     so session teardown no longer loses queued fires.
+ *   - Missed-tick catch-up ({@link catchUpMissedTicks}): at `session_start`,
+ *     cron/pulse routines whose latest scheduled slot passed while no
+ *     interactive session was live get ONE bounded catch-up fire.
  *   - The idle-aware `drainQueue` loop that hands work to `executor.fireRoutine`.
  *   - The drain watchdog (`runtime.drainWatchdog`), an idle-watch retry timer
  *     armed iff the fire queue is non-empty, so queued fires cannot starve
@@ -507,6 +510,99 @@ export function rehydrateQueuedFires(
 			hookOnce: entry.hookOnce,
 			autoDrain: false,
 		});
+	}
+}
+
+/**
+ * Fire each cron/pulse routine ONCE if its latest scheduled slot passed
+ * while no interactive session was live (machine asleep, pi not running).
+ * Runs at every interactive `session_start`, after rehydrateQueuedFires.
+ *
+ * Detection per trigger: anchor = max(tickState.lastFiredAt, createdAt).
+ *   - cron:  missed ⇔ nextCronFire(expr, tz, anchor) ≤ now — a slot after
+ *            the last fire (or creation) has already passed without firing.
+ *            nextCronFire probes from the next minute boundary, so the
+ *            slot a fire happened in is never re-counted.
+ *   - pulse: missed ⇔ anchor + intervalMs ≤ now — a full interval elapsed.
+ *
+ * Bounds and interplay:
+ *   - ONE fire per routine per session start, for the trigger with the
+ *     oldest missed slot. Multi-trigger routines don't multi-fire.
+ *   - Skipped silently for paused routines, routines already queued
+ *     (rehydrated survivors win — they carry their original runId/age), or
+ *     the routine whose turn is in flight.
+ *   - The catch-up fire is a NORMAL fire through the FIFO queue: the
+ *     maxRunsPerDay cap and maxTicks gates still apply, so a capped routine
+ *     records a skip instead of burning tokens.
+ *   - The entry carries a contextNote explaining it is a catch-up, so the
+ *     routine's LLM doesn't mistake the fire time for its scheduled slot.
+ *   - Idempotent across restarts: a successful catch-up bumps lastFiredAt,
+ *     so the next session_start finds no missed slot; a catch-up that never
+ *     drains persists in `pendingQueue` instead of re-enqueueing.
+ *   - oneoff triggers are deliberately out of scope: the arm path already
+ *     marks a past one-off as spent, and whether a lapsed reminder should
+ *     fire late is a separate policy question.
+ */
+export function catchUpMissedTicks(
+	runtime: RoutineRuntimeState,
+	pi: ExtensionAPI,
+	getCtx: () => ExtensionContext | null,
+): void {
+	const nowMs = Date.now();
+	for (const routine of Object.values(runtime.store.routines)) {
+		if (routine.paused) continue;
+		if (queueHasRoutine(runtime, routine.id)) continue;
+		if (runtime.pendingRun?.routineId === routine.id) continue;
+
+		const tick = runtime.store.tickState[routine.id];
+		const anchor = Math.max(tick?.lastFiredAt ?? 0, routine.createdAt ?? 0);
+		let missed: { triggerIndex: number; kind: "cron" | "pulse"; at: number } | null = null;
+		for (const [index, trigger] of routine.triggers.entries()) {
+			let at: number | null = null;
+			let kind: "cron" | "pulse" | null = null;
+			if (trigger.kind === "cron") {
+				try {
+					const next = nextCronFire(trigger.expr, trigger.timezone, new Date(anchor));
+					if (next.getTime() <= nowMs) {
+						at = next.getTime();
+						kind = "cron";
+					}
+				} catch {
+					/* invalid cron expressions are reported by the arm path */
+				}
+			} else if (trigger.kind === "pulse") {
+				const due = anchor + trigger.intervalMs;
+				if (due <= nowMs) {
+					at = due;
+					kind = "pulse";
+				}
+			}
+			if (at !== null && kind !== null && (missed === null || at < missed.at)) {
+				missed = { triggerIndex: index, kind, at };
+			}
+		}
+		if (!missed) continue;
+
+		const lastFired = tick?.lastFiredAt ?? 0;
+		const firedPart = lastFired
+			? `last fired ${new Date(lastFired).toISOString()}`
+			: `has never fired (created ${new Date(routine.createdAt).toISOString()})`;
+		enqueueRoutineFire(
+			routine,
+			{ index: missed.triggerIndex, kind: missed.kind },
+			runtime,
+			pi,
+			getCtx,
+			{
+				contextNote:
+					`Missed-tick catch-up: this routine ${firedPart}, and its scheduled slot ` +
+					`${new Date(missed.at).toISOString()} passed while no interactive session was live. ` +
+					`This is a single bounded catch-up fire for that gap — not a regularly scheduled tick. ` +
+					`If your prompt logic depends on the current date/time, use the real current time, ` +
+					`not the missed slot.`,
+				autoDrain: false,
+			},
+		);
 	}
 }
 

@@ -368,6 +368,22 @@ mid-rehydrate cannot double-fire work that already started). Single-fire
 origins dedup per routine; `api`/`github` entries stack, matching live
 enqueue semantics.
 
+### Missed-tick catch-up
+
+Queue persistence covers fires that were *queued* when the session ended, but
+a cron/pulse routine whose slot passes while NO session is live (machine
+asleep, pi not running) never gets queued at all. At each interactive
+`session_start`, `catchUpMissedTicks` detects that gap per routine — cron:
+the next slot after `max(lastFiredAt, createdAt)` is already in the past;
+pulse: a full interval has elapsed — and enqueues ONE catch-up fire for the
+trigger with the oldest missed slot. The fire is a normal queue entry with a
+`contextNote` explaining it is a catch-up (so the routine's LLM doesn't
+mistake the fire time for its schedule), and the usual gates still apply:
+paused routines are skipped, queued or in-flight routines are skipped, and
+`maxRunsPerDay`/`maxTicks` gate as usual. A successful catch-up bumps
+`lastFiredAt`, so restarts don't re-fire; a catch-up that never drains
+persists in `pendingQueue` like any other entry.
+
 ---
 
 ## Development

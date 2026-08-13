@@ -3,8 +3,10 @@
  *
  * Owns:
  *   - `session_start` — load persisted store, rehydrate queued fires that
- *     survived the previous session's teardown, schedule pulse routines,
- *     fire applicable `session_start` hook routines, refresh the widget.
+ *     survived the previous session's teardown, fire one bounded catch-up
+ *     per cron/pulse routine whose scheduled slot passed while no session
+ *     was live, schedule pulse routines, fire applicable `session_start`
+ *     hook routines, refresh the widget.
  *   - `agent_end` — release the recursion guard if a routine turn just
  *     finished, drain any queued pulses, and (only on user-driven turns)
  *     fire AT MOST ONE applicable `agent_end` hook routine.
@@ -37,6 +39,7 @@ import { nanoid } from "nanoid";
 import { recordRun, recordSkippedFire } from "./executor.ts";
 import * as guard from "./guard.ts";
 import {
+	catchUpMissedTicks,
 	drainQueue,
 	enqueueRoutineFire,
 	rehydrateQueuedFires,
@@ -105,6 +108,11 @@ export function registerHooks(
 		// before fresh hook picks / timer enqueues so dedup drops the fresh
 		// duplicates, not the survivors (which keep their original runId/age).
 		rehydrateQueuedFires(runtime, pi, getCtx);
+
+		// One bounded catch-up fire per cron/pulse routine whose latest
+		// scheduled slot passed while no interactive session was live (asleep,
+		// pi down). After rehydrate so queued survivors suppress the catch-up.
+		catchUpMissedTicks(runtime, pi, getCtx);
 
 		// Re-arm timers for every routine; scheduler decides per trigger.
 		for (const routine of Object.values(runtime.store.routines)) {
