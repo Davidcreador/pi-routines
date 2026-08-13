@@ -3,7 +3,28 @@
 All notable changes to `pi-routines` are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.6.0 — 2026-08-13
+
+Minor release: queue reliability across busy sessions, restarts, and missed
+schedule slots, plus footer visibility when work is starving. No schema bump
+and no breaking changes. `pendingQueue` is an additive store field; older
+builds ignore it.
+
+### Contributors
+
+This release is the first with external contributors. Thank you:
+
+- **[Jakub Suchy](https://github.com/jakubsuchy)** ([#8](https://github.com/Davidcreador/pi-routines/pull/8)) —
+  found that pulse/cron routines stalled after the first fire when another
+  agent turn was in flight, and added the `agent_settled` drain so they keep
+  ticking.
+- **[Tiago Luchini](https://github.com/luchiniatwork)** ([#9](https://github.com/Davidcreador/pi-routines/pull/9),
+  [#10](https://github.com/Davidcreador/pi-routines/pull/10),
+  [#11](https://github.com/Davidcreador/pi-routines/pull/11),
+  [#12](https://github.com/Davidcreador/pi-routines/pull/12)) —
+  drain watchdog, persisted fire queue, footer queue health, and bounded
+  missed-tick catch-up. A half-hourly cron that sat skipped for nine hours
+  is why these landed.
 
 ### Added
 
@@ -32,9 +53,17 @@ All notable changes to `pi-routines` are documented here. Versions follow
   refresh interval now also runs while the queue is non-empty, even when no
   timed routines exist, so a starving queue's age keeps ticking. Starvation
   was previously invisible unless you read `/routine-runs`.
+- `agent_settled` lifecycle handler to drain queued fires when the agent is
+  truly idle (bypassing the `isIdle()` race at `agent_end`).
 
 ### Fixed
 
+- **Pulse routines now keep ticking instead of stalling after the first fire.**
+  At `agent_end`, Pi's internal run flag is still set, so `ctx.isIdle()`
+  returns `false` and `drainQueue` bails out. A pulse that fired during the
+  just-finished turn stayed in the queue forever, and every subsequent pulse
+  was deduped against the stuck entry. Now `agent_settled` drains the queue
+  after Pi's run flag clears, so the routine keeps firing.
 - Queued routine fires can no longer starve when the session stays busy
   across every drain trigger (enqueue, `agent_end`, `session_start`, manual
   commands). A new drain watchdog re-attempts the idle-aware queue drain on a
@@ -42,6 +71,12 @@ All notable changes to `pi-routines` are documented here. Versions follow
   `PI_ROUTINES_DRAIN_RETRY_MS` (clamped to 5s–10min) — and disarms as soon as
   the queue empties or the scheduler stops. `drainQueue` is now also
   re-entrancy safe against racing drain triggers.
+
+### Tests
+
+278 / 278 passing (was 230 in 0.5.1). Added regression coverage for
+`agent_settled` drain, the drain watchdog, queue persistence/rehydration,
+footer queue health, and missed-tick catch-up.
 
 ## 0.5.1 — 2026-07-09
 
@@ -57,20 +92,6 @@ GitHub/API automation, and comprehensive edge-case validation. Existing v1/v2
 stores migrate automatically.
 
 ### Fixed
-
-- **Pulse routines now keep ticking instead of stalling after the first fire.**
-  At `agent_end`, Pi's internal run flag is still set, so `ctx.isIdle()`
-  returns `false` and `drainQueue` bails out. A pulse that fired during the
-  just-finished turn stayed in the queue forever, and every subsequent pulse
-  was deduped against the stuck entry. Now `agent_settled` drains the queue
-  after Pi's run flag clears, so the routine keeps firing.
-
-### Added
-
-- `agent_settled` lifecycle handler to drain queued pulses when the agent is
-  truly idle (bypassing the `isIdle()` race at `agent_end`).
-
-### Changed
 
 - Shutdown hooks are durably deferred to the next interactive session with a
   bounded transcript snapshot instead of starting an LLM turn during teardown;
