@@ -7,8 +7,9 @@
  */
 
 import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { type ExtensionContext, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 // ─── Tiers ───────────────────────────────────────────────────────────────────
 
@@ -492,10 +493,29 @@ export const DEFAULT_GITHUB_POLL_MS = 120_000;
 export const MAX_GITHUB_BACKOFF_MS = 30 * 60_000;
 
 /**
- * Absolute path of the persisted state file.
- * Uses the OS home directory when `HOME` is unset.
+ * Base directory holding pi-routines' persisted data files — `state.json`,
+ * `tokens.json`, and their `.bak`/`.tmp`/`.v{n}.bak` siblings.
+ *
+ * Override with the `PI_ROUTINES_DIR` env var. Its value may be absolute,
+ * relative (resolved against the current working directory), or start with
+ * `~`/`~/` (expanded to the home directory). When unset it resolves under the
+ * pi agent config directory ({@link getAgentDir}), which itself honours
+ * `PI_CODING_AGENT_DIR` and falls back to `~/.pi/agent`.
+ *
+ * Captured once at module load; set the env var before starting pi.
  */
-export const STATE_FILE: string = `${process.env.HOME || homedir()}/.pi/agent/extensions/routines/state.json`;
+export const ROUTINES_DIR: string = resolveRoutinesDir();
+
+function resolveRoutinesDir(): string {
+	const override = process.env.PI_ROUTINES_DIR?.trim();
+	if (!override) return join(getAgentDir(), "extensions", "routines");
+	const expanded =
+		override === "~" || override.startsWith("~/") ? join(homedir(), override.slice(1)) : override;
+	return resolve(expanded);
+}
+
+/** Absolute path of the persisted state file. Lives under {@link ROUTINES_DIR}. */
+export const STATE_FILE: string = join(ROUTINES_DIR, "state.json");
 
 /** Directory containing bundled routine templates. */
 export const TEMPLATES_DIR: string = fileURLToPath(new URL("../templates", import.meta.url));

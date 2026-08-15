@@ -2,8 +2,8 @@
  * @file tokens.ts — per-routine bearer tokens for the HTTP trigger.
  *
  * Tokens are 32-byte random hex strings, keyed by routine id, persisted to
- * `${HOME}/.pi/agent/extensions/routines/tokens.json` (falls back to
- * `/tmp/pi-routines-tokens.json` when HOME is unset).
+ * `tokens.json` alongside `state.json` in the routines data directory
+ * (see {@link TOKEN_FILE}, overridable via `PI_ROUTINES_DIR`).
  *
  * Security:
  *   - File is created with mode `0o600` (owner read/write only).
@@ -19,11 +19,14 @@
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { homedir } from "node:os";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
+import { ROUTINES_DIR } from "./types.ts";
 
-/** Absolute path of the persisted token file. */
-export const TOKEN_FILE: string = `${process.env.HOME || homedir()}/.pi/agent/extensions/routines/tokens.json`;
+/**
+ * Absolute path of the persisted token file. Lives under {@link ROUTINES_DIR},
+ * so it follows the `PI_ROUTINES_DIR` override alongside `state.json`.
+ */
+export const TOKEN_FILE: string = join(ROUTINES_DIR, "tokens.json");
 
 /** Permissive bits we will not tolerate: anything broader than 0o600. */
 const MAX_ALLOWED_MODE = 0o600;

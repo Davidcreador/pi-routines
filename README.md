@@ -293,6 +293,13 @@ guide that pi auto-injects when relevant.
 | `~/.pi/routines/prompts/<name>.txt`           | `routine-export-cron` writes per-routine prompt files here           |
 | `~/.pi/routines/launchd/com.pi-routines.<name>.plist` | `routine-export-cron` writes macOS launchd plists          |
 
+The `state.json` / `tokens.json` base directory defaults to
+`<agent-dir>/extensions/routines` (the agent dir follows pi's own
+`PI_CODING_AGENT_DIR`, else `~/.pi/agent`). Override it with **`PI_ROUTINES_DIR`**
+— an absolute, relative (resolved against the cwd), or `~`-prefixed path. Both
+files, plus their `.bak`/`.tmp` siblings, move together. The path is read once
+at startup, so set the env var before launching pi.
+
 State is **fault-tolerant**: corrupt JSON or missing file → empty store; valid
 JSON is shape-validated and invalid routines are ignored individually.
 Disk-full / permission errors on save → log to stderr, keep running with
