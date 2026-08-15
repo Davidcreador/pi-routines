@@ -6,9 +6,9 @@
  * the JSDoc here as the contract.
  */
 
-import { homedir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { type ExtensionContext, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 // ─── Tiers ───────────────────────────────────────────────────────────────────
 
@@ -493,9 +493,11 @@ export const MAX_GITHUB_BACKOFF_MS = 30 * 60_000;
 
 /**
  * Absolute path of the persisted state file.
- * Uses the OS home directory when `HOME` is unset.
+ * Resolved under the pi agent config directory ({@link getAgentDir}), which
+ * honours the `PI_CODING_AGENT_DIR` env var and falls back to
+ * `~/.pi/agent` when unset.
  */
-export const STATE_FILE: string = `${process.env.HOME || homedir()}/.pi/agent/extensions/routines/state.json`;
+export const STATE_FILE: string = join(getAgentDir(), "extensions", "routines", "state.json");
 
 /** Directory containing bundled routine templates. */
 export const TEMPLATES_DIR: string = fileURLToPath(new URL("../templates", import.meta.url));
